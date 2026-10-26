@@ -2,7 +2,7 @@
 
 **A study notebook for iPad that quizzes you on what you wrote.**
 
-Clickable prototype: https://jazzfoxtrot.github.io/takenotes/
+Clickable prototype: https://blik.design/TakeNotes/
 
 TakeNotes is a handwritten notebook for university students. One notebook per subject, pages by lecture date, and a weekly timetable that opens the right notebook during each class. What makes it different: the notebook turns your own notes into questions and brings back what you are about to forget.
 
