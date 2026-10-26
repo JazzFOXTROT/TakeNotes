@@ -125,8 +125,8 @@ SCREENS.ob = () => {
     <div class="ob-foot" style="margin-top:28px;width:min(420px,100%)"><button class="btn ink" data-ob-next>Get started</button></div></div>`;
   const N = 4;
   const body = {
-    1: ['What should we call you?', 'We’ll use it in greetings.', `<input class="field write" id="f-name" placeholder="Write your name with Apple Pencil" value="${esc(pr.name)}" autocomplete="given-name"><div class="s14 sec">No keyboard needed — write right in the field. You can also skip this.</div>`],
-    2: ['What do you study?', 'Optional — it helps us suggest the right paper.', `<input class="field write" id="f-study" placeholder="Write it, or pick one below" value="${esc(pr.study)}">${chipsFor(FIELDS, 'f-study')}`],
+    1: ['What should we call you?', 'We’ll use it in greetings.', `<input class="field" id="f-name" placeholder="Your name" value="${esc(pr.name)}" autocomplete="given-name" enterkeyhint="next">`],
+    2: ['What do you study?', 'Optional — it helps us suggest the right paper.', `<input class="field" id="f-study" placeholder="e.g. Economics" value="${esc(pr.study)}" autocomplete="off" enterkeyhint="next">${chipsFor(FIELDS, 'f-study')}`],
     3: ['How many questions a day?', 'They come from your own notes. You can change this later.', `<div class="col g10">${[[3, 'About 2 minutes', 'Light'], [5, 'About 3 minutes', 'Regular'], [10, 'About 6 minutes', 'Serious'], [15, 'About 9 minutes', 'Intense']].map(([n, a, b]) => `<button class="option ${pr.daily === n ? 'on' : ''}" data-daily="${n}"><span class="grow">${n} a day<span class="sub">${a}</span></span><span class="s14 b5" style="opacity:.7">${b}</span></button>`).join('')}</div>`],
     4: ['Mark a line — it’s in your quiz', 'Questions come only from what you mark. No AI.', `<div class="col g10">
       ${[['Underline a line', 'The line is hidden in the quiz — you recall it.', '<span style="font-family:var(--hand);font-size:28px;border-bottom:2px solid #171614;padding:0 2px">slope of the tangent</span>'],
@@ -566,7 +566,7 @@ class Editor {
 /* ===== sheets ===== */
 SHEETS.newnb = () => `<div class="dim" data-dim><div class="sheet col g16">
   <div class="row"><span class="serif h2 grow">New notebook</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
-  <div class="col g8"><span class="label">Subject</span><input class="field write" id="nb-name" placeholder="Write the subject with Apple Pencil">${chipsFor(SUBJECTS.filter(x => !M.notebooks.some(n => n.name.toLowerCase() === x.toLowerCase())).slice(0, 10), 'nb-name')}</div>
+  <div class="col g8"><span class="label">Subject</span><input class="field" id="nb-name" placeholder="e.g. Mathematics" autocomplete="off" autocapitalize="words" enterkeyhint="done">${chipsFor(SUBJECTS.filter(x => !M.notebooks.some(n => n.name.toLowerCase() === x.toLowerCase())).slice(0, 10), 'nb-name')}</div>
   <div class="col g8"><span class="label">Colour</span><div class="row g12" id="nb-colors">${COLORS.map((c, i) => `<button data-pick-color="${c}" style="padding:4px;border-radius:50%;${i === M.notebooks.length % 5 ? 'box-shadow:0 0 0 2px #171614' : ''}"><span class="c-${c}" style="display:block;width:34px;height:34px;border-radius:50%"></span></button>`).join('')}</div></div>
   <div class="col g8"><span class="label">Paper</span><div class="seg" id="nb-paper" style="align-self:flex-start">${PAPERS.map((p, i) => `<button class="${i === 0 ? 'on' : ''}" data-pick-paper="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div><span class="s13 sec" id="nb-hint">You can switch any time in the toolbar.</span></div>
   <button class="btn ink" data-create-nb>Create notebook</button></div></div>`;
@@ -586,12 +586,12 @@ SHEETS.addclass = () => {
   return `<div class="dim" data-dim><div class="sheet col g16">
   <div class="row"><span class="serif h2 grow">${c ? 'Edit class' : 'Add class'}</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
   <div class="col g8"><span class="label">Subject</span><div class="chips">${M.notebooks.map(n => `<button class="chip ${f.nb === n.id ? 'on' : ''}" data-f-nb="${n.id}"><span class="dot c-${n.color}"></span>${esc(n.name)}</button>`).join('')}<button class="chip ${f.nb === 'new' ? 'on' : ''}" data-f-nb="new">${I('plus', f.nb === 'new' ? '#fff' : '#171614', 16)}New subject</button></div>
-    ${f.nb === 'new' ? `<input class="field write" id="cl-name" data-f="newName" placeholder="Write the subject with Apple Pencil" value="${esc(f.newName)}">${chipsFor(SUBJECTS.filter(x => !taken.has(x.toLowerCase())).slice(0, 10), 'cl-name')}<div class="s13 sec">A notebook for it is created too — ready for the first class.</div>` : ''}</div>
+    ${f.nb === 'new' ? `<input class="field" id="cl-name" data-f="newName" placeholder="e.g. Physics" value="${esc(f.newName)}" autocomplete="off" autocapitalize="words">${chipsFor(SUBJECTS.filter(x => !taken.has(x.toLowerCase())).slice(0, 10), 'cl-name')}<div class="s13 sec">A notebook for it is created too — ready for the first class.</div>` : ''}</div>
   <div class="col g8"><span class="label">Day</span><div class="chips">${DAYS.map((d, i) => `<button class="chip ${f.day === i ? 'on' : ''}" data-f-day="${i}">${d} ${dateOfWeekday(off, i).getDate()}</button>`).join('')}</div></div>
   <div class="row g12"><div class="col g8 grow"><span class="label">Starts</span><input type="time" step="900" class="field" data-f="start" value="${f.start}"></div><div class="col g8 grow"><span class="label">Ends</span><input type="time" step="900" class="field" data-f="end" value="${f.end}"></div></div>
   <div class="col g8"><span class="label">Repeats</span><div class="seg" style="align-self:flex-start;flex-wrap:wrap">${[['once', 'Once'], ['weekly', 'Every week'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Monthly']].map(([k, t]) => `<button class="${f.repeat === k ? 'on' : ''}" data-f-rep="${k}">${t}</button>`).join('')}</div></div>
   ${f.repeat !== 'once' ? `<div class="col g8"><span class="label">Until (optional) — e.g. end of semester</span><div class="row g8"><input type="date" class="field grow" data-f="until" value="${f.until}">${f.until ? `<button class="btn muted sm" data-f-clear>No end</button>` : ''}</div></div>` : ''}
-  <div class="col g8"><span class="label">Room (optional)</span><input class="field" data-f="room" value="${esc(f.room)}" placeholder="e.g. Room 204"></div>
+  <div class="col g8"><span class="label">Room (optional)</span><input class="field" data-f="room" value="${esc(f.room)}" placeholder="e.g. Room 204" autocomplete="off"></div>
   <div class="s14 b5 sec">${esc(sum)}</div>
   <div class="row g12">${c ? '<button class="btn muted grow" data-del-class>Delete</button>' : ''}<button class="btn ink grow" data-save-class>${c ? 'Save' : 'Add to my week'}</button></div></div></div>`;
 };
@@ -625,7 +625,7 @@ SHEETS.quiz = () => { const ps = pagesOf(ui.nbId).filter(p => p.dateKey === dayK
   <button class="option" style="background:var(--canvas)" data-q-all><span class="grow">Whole notebook<span class="sub">${all} question${all === 1 ? '' : 's'} · up to 10, most forgotten first</span></span></button></div></div>`; };
 mountSheet.quiz = () => $('.sheet').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.qToday !== undefined) startQuiz('nb', { today: true }); if (b.dataset.qAll !== undefined) startQuiz('nb', { count: 10 }); });
 SHEETS.nbsettings = () => { const nb = nbById(ui.nbId); return `<div class="dim" data-dim><div class="sheet col g16"><div class="row"><span class="serif h2 grow">Notebook</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
-  <div class="col g8"><span class="label">Name</span><input class="field write" id="ns-name" value="${esc(nb.name)}"></div>
+  <div class="col g8"><span class="label">Name</span><input class="field" id="ns-name" value="${esc(nb.name)}" autocomplete="off"></div>
   <div class="col g8"><span class="label">Colour</span><div class="row g12">${COLORS.map(c => `<button data-ns-color="${c}" style="padding:4px;border-radius:50%;${nb.color === c ? 'box-shadow:0 0 0 2px #171614' : ''}"><span class="c-${c}" style="display:block;width:34px;height:34px;border-radius:50%"></span></button>`).join('')}</div></div>
   <div class="row g12"><button class="btn muted grow" data-ns-del>Delete notebook</button><button class="btn ink grow" data-ns-save>Save</button></div></div></div>`; };
 mountSheet.nbsettings = () => { const nb = nbById(ui.nbId); let color = nb.color; $('.sheet').addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
