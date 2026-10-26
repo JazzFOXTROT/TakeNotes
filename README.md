@@ -15,8 +15,10 @@
 - Writing with Apple Pencil: pressure, highlighter, eraser (also the Pencil eraser), undo/redo, photos
 - Fingers scroll, two-finger tap undoes (finger drawing can be turned on in Settings)
 - Marks without AI: **underline** a line or **circle** a word/formula → it becomes a question; or drag a box with the **Q** tool
+- Scratch out or strike through writing to erase it
+- No keyboard needed: write in any field with Apple Pencil (Scribble) or pick a subject
 - Test myself on a page, quizzes per notebook, daily due questions with spaced repetition
-- Weekly timetable — the right notebook opens during class; exam countdowns
+- Timetable: once / every week / every 2 weeks / monthly, optional end date; add subjects before the first class; drag classes to move or resize (15-min steps); exam countdowns
 - Works on all iPad sizes, portrait and landscape
 
 ## Good to know
