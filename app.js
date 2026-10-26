@@ -1,5 +1,5 @@
 'use strict';
-const BUILD = '1.7';
+const BUILD = '1.8';
 /* TakeNotes — web app (local-first, works offline when installed) */
 
 /* ---------- utils ---------- */
@@ -438,7 +438,7 @@ class Editor {
     this.slot = slot; this.page = slot.page; this.pageId = slot.id; this.pageEl = slot.el; this.base = slot.base; this.live = slot.live; this.over = slot.over; ui.pageId = slot.id;
     this.renderTools();
   }
-  destroy() { removeEventListener('resize', this.onResize); this.root.removeEventListener('click', this.onClick); document.removeEventListener('gesturestart', this.preventGesture); for (const s of this.slots) if (s.page) savePageNow(s.page); }
+  destroy() { this.stopFling(); removeEventListener('resize', this.onResize); this.root.removeEventListener('click', this.onClick); document.removeEventListener('gesturestart', this.preventGesture); for (const s of this.slots) if (s.page) savePageNow(s.page); }
   renderTools() {
     const nb = this.nb, n = this.slots.length, idx = this.slots.indexOf(this.slot); if (!this.page) return;
     $('#ed-nb').textContent = nb.name; $('#ed-title').textContent = `Page ${idx + 1} of ${n}`;
@@ -488,7 +488,13 @@ class Editor {
   }
   qTop(c, cs, s) { const ys = cs.slice().sort((a, b) => (a.y + a.h / 2) - (b.y + b.h / 2)); let last = -1e9; for (const x of ys) { const t = Math.max((x.y + x.h / 2) * s - 14, last + 32); if (x === c) return t; last = t; } return 0; }
   renderAllOverlays() { for (const s of this.slots) if (s.ready) this.renderOverlay(s); }
-  scrollBy(dy, dx = 0) { const max = Math.max(0, this.inner.scrollHeight - this.scroller.clientHeight), maxX = Math.max(0, this.inner.scrollWidth - this.scroller.clientWidth); this.scrollY = Math.min(max, Math.max(0, this.scrollY + dy)); this.scrollX = Math.min(maxX, Math.max(0, (this.scrollX || 0) + dx)); this.inner.style.transformOrigin = '0 0'; this.inner.style.transform = `translate(${-this.scrollX}px,${-this.scrollY}px)`; if (dy) this.updateVisible(); }
+  scrollBy(dy, dx = 0) { const max = Math.max(0, this.inner.scrollHeight - this.scroller.clientHeight), maxX = Math.max(0, this.inner.scrollWidth - this.scroller.clientWidth); this.scrollY = Math.min(max, Math.max(0, this.scrollY + dy)); this.scrollX = Math.min(maxX, Math.max(0, (this.scrollX || 0) + dx)); this.inner.style.transformOrigin = '0 0'; this.inner.style.transform = `translate3d(${-this.scrollX}px,${-this.scrollY}px,0)`; if (dy && !this.uvPending) { this.uvPending = true; requestAnimationFrame(() => { this.uvPending = false; this.updateVisible(); }); } }
+  stopFling() { if (this.flingId) cancelAnimationFrame(this.flingId); this.flingId = null; }
+  fling(vx, vy) { // momentum after a flick, slowing down like iOS lists
+    this.stopFling(); let last = performance.now();
+    const step = now => { const dt = Math.min(40, now - last); last = now; const y0 = this.scrollY, x0 = this.scrollX; this.scrollBy(-vy * dt, -vx * dt); const k = Math.pow(0.9975, dt); vx *= k; vy *= k;
+      if (this.scrollY === y0) vy = 0; if (this.scrollX === x0) vx = 0; if (Math.hypot(vx, vy) < 0.02) { this.flingId = null; this.updateVisible(); return; } this.flingId = requestAnimationFrame(step); };
+    this.flingId = requestAnimationFrame(step); }
   commitZoom(P) {
     const c = P.c || P.c0, fx = (P.c0[0] + P.sx) / P.W, fy = (P.c0[1] + P.sy) / P.H; let z = Math.round(P.z0 * P.k * 20) / 20; if (Math.abs(z - 1) < 0.08) z = 1; z = Math.min(3, Math.max(0.5, z));
     this.zoom = z; this.layout(false); const W = this.inner.scrollWidth, H = this.inner.scrollHeight;
@@ -509,11 +515,11 @@ class Editor {
   clampImg(im) { if (im.w > PW) { const k = PW / im.w; im.w *= k; im.h *= k; } if (im.h > PH) { const k = PH / im.h; im.w *= k; im.h *= k; } im.x = Math.min(Math.max(0, im.x), PW - im.w); im.y = Math.min(Math.max(0, im.y), PH - im.h); }
   isDrawPointer(e) { return e.pointerType === 'pen' || e.pointerType === 'mouse' || (e.pointerType === 'touch' && M.profile.fingerDraw); }
   async down(e) {
-    if (e.target.closest('button,.ask')) return;
+    this.stopFling(); if (e.target.closest('button,.ask')) return;
     const hit = e.pointerType === 'touch' && !this.touches.size ? this.imgHit(e) : null;
     const fingerMove = hit && (this.tool === 'move' || hit.im.id === this.sel);
     if (e.pointerType === 'touch' && !M.profile.fingerDraw && !fingerMove) { // fingers: scroll + two-finger tap undo
-      this.touches.set(e.pointerId, { y: e.clientY, x: e.clientX, t: Date.now(), moved: 0, hit, single: !this.touches.size });
+      this.touches.set(e.pointerId, { y: e.clientY, x: e.clientX, t: Date.now(), moved: 0, hit, single: !this.touches.size, lt: performance.now(), vx: 0, vy: 0 });
       if (this.touches.size === 2) { this.twoStart = Date.now(); const [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); this.pinch = { d0: Math.hypot(p1.x - p2.x, p1.y - p2.y), c0: [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top], z0: this.zoom || 1, sx: this.scrollX || 0, sy: this.scrollY, k: 1, c: null, W: this.inner.scrollWidth, H: this.inner.scrollHeight }; }
       e.preventDefault(); return;
     }
@@ -531,7 +537,7 @@ class Editor {
     if (tool === 'move') { const im = [...(this.page.images || [])].reverse().find(i => p[0] >= i.x && p[0] <= i.x + i.w && p[1] >= i.y && p[1] <= i.y + i.h); this.sel = im?.id || null; if (im) { const resize = p[0] > im.x + im.w - 60 && p[1] > im.y + im.h - 60; this.drag = { im, p, ox: im.x, oy: im.y, ow: im.w, oh: im.h, resize }; } this.renderTools(); this.renderOverlay(); }
   }
   move(e) {
-    if (this.touches.has(e.pointerId)) { const t = this.touches.get(e.pointerId); const dy = e.clientY - t.y, dx = e.clientX - t.x; t.moved += Math.abs(dy) + Math.abs(dx); t.y = e.clientY; t.x = e.clientX;
+    if (this.touches.has(e.pointerId)) { const t = this.touches.get(e.pointerId); const dy = e.clientY - t.y, dx = e.clientX - t.x; t.moved += Math.abs(dy) + Math.abs(dx); t.y = e.clientY; t.x = e.clientX; const now = performance.now(), dt = Math.max(1, now - t.lt); t.lt = now; t.vx = 0.7 * (dx / dt) + 0.3 * t.vx; t.vy = 0.7 * (dy / dt) + 0.3 * t.vy;
       if (this.touches.size === 1 && !this.pinch) this.scrollBy(-dy, -dx);
       else if (this.pinch && this.touches.size === 2) { const P = this.pinch, [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); const k = Math.min(3 / P.z0, Math.max(0.5 / P.z0, Math.hypot(p1.x - p2.x, p1.y - p2.y) / Math.max(1, P.d0))); P.k = k; P.c = [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top];
         const ox = P.c0[0] + P.sx, oy = P.c0[1] + P.sy; this.inner.style.transformOrigin = `${ox}px ${oy}px`; this.inner.style.transform = `translate(${-P.sx + P.c[0] - P.c0[0]}px,${-P.sy + P.c[1] - P.c0[1]}px) scale(${k})`; }
@@ -551,6 +557,7 @@ class Editor {
       else if (t && t.single && this.touches.size === 1 && t.moved < 12 && Date.now() - t.t < 400) { // finger tap: select / deselect a picture
         const h = t.hit; if (h) { if (h.sl !== this.slot) this.activate(h.sl).then(() => { this.sel = h.im.id; this.renderTools(); this.renderOverlay(); }); else { this.sel = h.im.id; this.renderTools(); this.renderOverlay(); } toast('Drag the picture with your finger · corner to resize'); }
         else if (this.sel) { this.sel = null; this.renderTools(); this.renderOverlay(); } }
+      if (t && this.touches.size === 1 && !P && t.moved >= 12 && performance.now() - t.lt < 80 && Math.hypot(t.vx, t.vy) > 0.25) this.fling(t.vx, t.vy);
       this.touches.delete(e.pointerId); if (!this.touches.size) { this.twoStart = 0; this.pinch = null; } return;
     }
     if (e.pointerId !== this.penActive) return; this.penActive = null; const tool = this.curTool;
