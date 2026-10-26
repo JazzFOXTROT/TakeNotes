@@ -289,7 +289,8 @@ async function startQuiz(kind, opts = {}) {
   if (kind === 'page') list = cardsOfPage(opts.pageId);
   if (!list.length) return toast('No questions here yet — mark lines in your notes first');
   for (const c of list) await loadPage(c.pageId);
-  quiz = { kind, list: list.map(c => c.id), i: 0, revealed: false, results: [], back: ui.screen === 'notebook' ? 'notebook' : 'home' };
+  quiz = { kind, list: list.map(c => c.id), i: 0, revealed: false, results: [], back: ui.screen === 'editor' ? 'editor' : ui.screen === 'notebook' ? 'notebook' : 'home' };
+  if (editor && ui.screen === 'editor') ui.restore = { pageId: editor.pageId, y: editor.scrollY, x: editor.scrollX || 0, zoom: editor.zoom || 1 };
   go('quiz');
 }
 SCREENS.quiz = () => {
@@ -413,7 +414,8 @@ class Editor {
     await this.ensureTrailing();
     this.layout();
     const i = Math.max(0, this.slots.findIndex(s => s.id === this.startId));
-    this.scrollY = 0; this.scrollBy(this.slotTop(i)); await this.activate(this.slots[i]); this.updateVisible();
+    this.scrollY = 0; this.scrollBy(this.slotTop(i)); await this.activate(this.slots[i]);
+    const r = ui.restore; if (r && r.pageId === this.startId) { this.zoom = r.zoom; this.layout(false); this.scrollY = 0; this.scrollX = 0; this.scrollBy(r.y, r.x); this.renderTools(); } ui.restore = null; this.updateVisible();
     if (!M.profile.tipShown) { M.profile.tipShown = true; saveMeta(); toast('Pen writes · marker makes questions · two fingers zoom'); } if (ui.paperTip) { toast(ui.paperTip); ui.paperTip = null; }
   }
   addSlot(id) {
@@ -447,7 +449,7 @@ class Editor {
       <div class="tool-group">${t('pen', 'pen', 'Pen')}${t('hl', 'hl', 'Highlighter')}${t('eraser', 'eraser', 'Eraser')}${t('move', 'move', 'Move pictures')}${t('q', 'q', 'Q — drag a box to make a question')}</div>
       <div class="tool-group">${['#171614', '#3B63C4', '#C2410C', '#15803D'].map(c => `<button class="sw ${this.color === c ? 'on' : ''}" data-color="${c}"><i style="background:${c}"></i></button>`).join('')}<button class="icon-btn" data-ed="size" title="Line size"><span style="width:${{ s: 6, m: 10, l: 15 }[this.size]}px;height:${{ s: 6, m: 10, l: 15 }[this.size]}px;border-radius:50%;background:#171614"></span></button></div>
       <div class="pop-wrap"><button class="tool-group paper-btn" data-ed="paper">${this.page.paper[0].toUpperCase() + this.page.paper.slice(1)} ${I('M7 10l5 5 5-5', '#6F6B64', 18)}</button>${this.paperOpen ? `<div class="pop">${PAPERS.map(p => `<button class="${this.page.paper === p ? 'on' : ''}" data-paper="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div>` : ''}</div>
-      ${(this.zoom || 1) > 1 ? `<button class="tool-group paper-btn" data-ed="fit">${Math.round(this.zoom * 100)}%</button>` : ''}<div class="tool-group"><button class="icon-btn" data-ed="photo" title="Insert photo">${I('photo')}</button>${this.sel ? `<button class="icon-btn" data-ed="delimg" title="Delete picture">${I('trash')}</button>` : ''}<button class="icon-btn" data-ed="undo" title="Undo">${I('undo')}</button><button class="icon-btn" data-ed="redo" title="Redo">${I('redo')}</button></div>`;
+      ${(this.zoom || 1) !== 1 ? `<button class="tool-group paper-btn" data-ed="fit">${Math.round(this.zoom * 100)}%</button>` : ''}<div class="tool-group"><button class="icon-btn" data-ed="photo" title="Insert photo">${I('photo')}</button>${this.sel ? `<button class="icon-btn" data-ed="delimg" title="Delete picture">${I('trash')}</button>` : ''}<button class="icon-btn" data-ed="undo" title="Undo">${I('undo')}</button><button class="icon-btn" data-ed="redo" title="Redo">${I('redo')}</button></div>`;
   }
   get gap() { return 24; }
   slotTop(i) { return i * (this.h + this.gap); }
@@ -487,10 +489,10 @@ class Editor {
   renderAllOverlays() { for (const s of this.slots) if (s.ready) this.renderOverlay(s); }
   scrollBy(dy, dx = 0) { const max = Math.max(0, this.inner.scrollHeight - this.scroller.clientHeight), maxX = Math.max(0, this.inner.scrollWidth - this.scroller.clientWidth); this.scrollY = Math.min(max, Math.max(0, this.scrollY + dy)); this.scrollX = Math.min(maxX, Math.max(0, (this.scrollX || 0) + dx)); this.inner.style.transformOrigin = '0 0'; this.inner.style.transform = `translate(${-this.scrollX}px,${-this.scrollY}px)`; if (dy) this.updateVisible(); }
   commitZoom(P) {
-    const c = P.c || P.c0, fx = (P.c0[0] + P.sx) / P.W, fy = (P.c0[1] + P.sy) / P.H; let z = Math.round(P.z0 * P.k * 20) / 20; if (z < 1.08) z = 1; z = Math.min(3, z);
+    const c = P.c || P.c0, fx = (P.c0[0] + P.sx) / P.W, fy = (P.c0[1] + P.sy) / P.H; let z = Math.round(P.z0 * P.k * 20) / 20; if (Math.abs(z - 1) < 0.08) z = 1; z = Math.min(3, Math.max(0.5, z));
     this.zoom = z; this.layout(false); const W = this.inner.scrollWidth, H = this.inner.scrollHeight;
     this.scrollX = 0; this.scrollY = 0; this.scrollBy(fy * H - c[1], fx * W - c[0]); this.renderTools();
-    if (z > 1 && P.z0 === 1 && !M.profile.zoomTip) { M.profile.zoomTip = true; saveMeta(); toast('Pinch in — or tap the % button — to go back to page width'); }
+    if (z !== 1 && P.z0 === 1 && !M.profile.zoomTip) { M.profile.zoomTip = true; saveMeta(); toast('Tap the % button in the toolbar to go back to page width'); }
   }
   async moveImgTo(d, to, shift) {
     const from = this.slot; if (!to.page) to.page = await loadPage(to.id); if (!to.page) return;
@@ -501,14 +503,16 @@ class Editor {
   xfer(a, back) { const [src, dst] = back ? [a.to, a.from] : [a.from, a.to]; src.page.images = src.page.images.filter(i => i !== a.im); Object.assign(a.im, back ? a.before : a.after); dst.page.images.push(a.im); if (a.cards) { if (back) M.cards.push(...a.cards); else M.cards = M.cards.filter(c => !a.cards.includes(c)); } saveMeta(); this.save(src); this.save(dst); this.redraw(src); this.redraw(dst); this.sel = null; this.renderTools(); }
   scrollToSlot(i) { this.scrollBy(this.slotTop(i) - this.scrollY); this.activate(this.slots[i]); }
   pt(e) { const r = this.pageEl.getBoundingClientRect(); return [(e.clientX - r.left) / this.s, (e.clientY - r.top) / this.s, e.pointerType === 'pen' ? (e.pressure || .5) : .5]; }
+  imgHit(e) { const el = e.target.closest?.('.page'), sl = el && this.slots.find(s => s.el === el); if (!sl?.page) return null; const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / this.s, y = (e.clientY - r.top) / this.s; const im = (sl.page.images || []).slice().reverse().find(i => x >= i.x - 10 && x <= i.x + i.w + 10 && y >= i.y - 10 && y <= i.y + i.h + 10); return im ? { sl, im } : null; }
   imageAt(e) { const el = e.target.closest?.('.page'), sl = el && this.slots.find(s => s.el === el); if (!sl?.page) return null; const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / this.s, y = (e.clientY - r.top) / this.s; return (sl.page.images || []).slice().reverse().find(i => x >= i.x - 20 && x <= i.x + i.w + 20 && y >= i.y - 20 && y <= i.y + i.h + 20) ? sl : null; }
   clampImg(im) { if (im.w > PW) { const k = PW / im.w; im.w *= k; im.h *= k; } if (im.h > PH) { const k = PH / im.h; im.w *= k; im.h *= k; } im.x = Math.min(Math.max(0, im.x), PW - im.w); im.y = Math.min(Math.max(0, im.y), PH - im.h); }
   isDrawPointer(e) { return e.pointerType === 'pen' || e.pointerType === 'mouse' || (e.pointerType === 'touch' && M.profile.fingerDraw); }
   async down(e) {
     if (e.target.closest('button,.ask')) return;
-    const fingerMove = e.pointerType === 'touch' && this.tool === 'move' && !this.touches.size && this.imageAt(e);
+    const hit = e.pointerType === 'touch' && !this.touches.size ? this.imgHit(e) : null;
+    const fingerMove = hit && (this.tool === 'move' || hit.im.id === this.sel);
     if (e.pointerType === 'touch' && !M.profile.fingerDraw && !fingerMove) { // fingers: scroll + two-finger tap undo
-      this.touches.set(e.pointerId, { y: e.clientY, x: e.clientX, t: Date.now(), moved: 0 });
+      this.touches.set(e.pointerId, { y: e.clientY, x: e.clientX, t: Date.now(), moved: 0, hit, single: !this.touches.size });
       if (this.touches.size === 2) { this.twoStart = Date.now(); const [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); this.pinch = { d0: Math.hypot(p1.x - p2.x, p1.y - p2.y), c0: [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top], z0: this.zoom || 1, sx: this.scrollX || 0, sy: this.scrollY, k: 1, c: null, W: this.inner.scrollWidth, H: this.inner.scrollHeight }; }
       e.preventDefault(); return;
     }
@@ -516,9 +520,9 @@ class Editor {
     if ((!this.isDrawPointer(e) && !fingerMove) || this.testing) return;
     if (this.penActive && this.penActive !== e.pointerId) return;
     const el = e.target.closest('.page'); if (!el) return; const slot = this.slots.find(s => s.el === el); if (!slot?.page) return;
-    if (slot !== this.slot) { this.slot = slot; this.page = slot.page; this.pageId = slot.id; this.pageEl = slot.el; this.base = slot.base; this.live = slot.live; this.over = slot.over; ui.pageId = slot.id; this.sel = null; this.renderTools(); }
+    if (slot !== this.slot) { this.slot = slot; this.page = slot.page; this.pageId = slot.id; this.pageEl = slot.el; this.base = slot.base; this.live = slot.live; this.over = slot.over; ui.pageId = slot.id; if (!fingerMove) this.sel = null; this.renderTools(); }
     e.preventDefault(); try { this.scroller.setPointerCapture(e.pointerId); } catch { } this.penActive = e.pointerId;
-    const p = this.pt(e); const tool = (e.buttons & 32) ? 'eraser' : this.tool;
+    const p = this.pt(e); const tool = fingerMove ? 'move' : (e.buttons & 32) ? 'eraser' : this.tool;
     this.curTool = tool;
     if (tool === 'pen' || tool === 'hl') { const size = tool === 'hl' ? { s: 18, m: 26, l: 36 }[this.size] : { s: 2.2, m: 3.2, l: 5 }[this.size]; this.cur = { id: uid(), tool, color: tool === 'hl' ? '#F0DF96' : this.color, size, points: [p] }; }
     if (tool === 'eraser') { this.erased = []; this.eraseAt(p); }
@@ -528,7 +532,7 @@ class Editor {
   move(e) {
     if (this.touches.has(e.pointerId)) { const t = this.touches.get(e.pointerId); const dy = e.clientY - t.y, dx = e.clientX - t.x; t.moved += Math.abs(dy) + Math.abs(dx); t.y = e.clientY; t.x = e.clientX;
       if (this.touches.size === 1 && !this.pinch) this.scrollBy(-dy, -dx);
-      else if (this.pinch && this.touches.size === 2) { const P = this.pinch, [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); const k = Math.min(3 / P.z0, Math.max(1 / P.z0, Math.hypot(p1.x - p2.x, p1.y - p2.y) / Math.max(1, P.d0))); P.k = k; P.c = [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top];
+      else if (this.pinch && this.touches.size === 2) { const P = this.pinch, [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); const k = Math.min(3 / P.z0, Math.max(0.5 / P.z0, Math.hypot(p1.x - p2.x, p1.y - p2.y) / Math.max(1, P.d0))); P.k = k; P.c = [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top];
         const ox = P.c0[0] + P.sx, oy = P.c0[1] + P.sy; this.inner.style.transformOrigin = `${ox}px ${oy}px`; this.inner.style.transform = `translate(${-P.sx + P.c[0] - P.c0[0]}px,${-P.sy + P.c[1] - P.c0[1]}px) scale(${k})`; }
       return; }
     if (e.pointerId !== this.penActive) return; e.preventDefault();
@@ -543,6 +547,9 @@ class Editor {
       const t = this.touches.get(e.pointerId), P = this.pinch;
       if (this.twoStart && Date.now() - this.twoStart < 300 && t && t.moved < 20 && this.touches.size === 2 && (!P || Math.abs(P.k - 1) < 0.05)) { this.twoStart = 0; this.pinch = null; this.scrollBy(0); this.doUndo(); toast('Undo'); }
       else if (P && this.touches.size === 2) { this.pinch = null; this.commitZoom(P); }
+      else if (t && t.single && this.touches.size === 1 && t.moved < 12 && Date.now() - t.t < 400) { // finger tap: select / deselect a picture
+        const h = t.hit; if (h) { if (h.sl !== this.slot) this.activate(h.sl).then(() => { this.sel = h.im.id; this.renderTools(); this.renderOverlay(); }); else { this.sel = h.im.id; this.renderTools(); this.renderOverlay(); } toast('Drag the picture with your finger · corner to resize'); }
+        else if (this.sel) { this.sel = null; this.renderTools(); this.renderOverlay(); } }
       this.touches.delete(e.pointerId); if (!this.touches.size) { this.twoStart = 0; this.pinch = null; } return;
     }
     if (e.pointerId !== this.penActive) return; this.penActive = null; const tool = this.curTool;
