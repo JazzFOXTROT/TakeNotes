@@ -45,6 +45,9 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .option .sub{display:block;font-size:14px;font-weight:400;color:var(--text2)}
 .option.on .sub{color:#d8d5cf}
 .dot{width:12px;height:12px;border-radius:50%;flex:none}
+.c-pink{background:#F5C6DA}.c-teal{background:#A8DDD6}.c-coral{background:#F3B2AB}.c-lime{background:#D3E5A4}.c-sky{background:#A7D3F2}.c-sand{background:#E6D3B3}.c-grey{background:#D9D6CF}
+.swatch{width:40px;height:40px;border-radius:50%;padding:3px;display:inline-flex}.swatch span{display:block;width:100%;height:100%;border-radius:50%}.swatch.on{box-shadow:0 0 0 2px var(--ink)}
+.sheet-foot{position:sticky;bottom:-26px;background:var(--surface);padding:12px 0 26px;margin-bottom:-26px;z-index:2}
 .c-blue{background:var(--blue)}.c-orange{background:var(--orange)}.c-green{background:var(--green)}.c-purple{background:var(--purple)}.c-yellow{background:var(--yellow)}
 .progress{flex:1;height:8px;border-radius:4px;background:var(--muted);overflow:hidden}.progress i{display:block;height:100%;background:var(--ink);transition:width .3s}
 .toggle{width:52px;height:32px;border-radius:999px;background:var(--muted);padding:3px;display:flex;flex:none;transition:background .15s}
@@ -86,10 +89,10 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .cover.add::before{display:none}
 .topnav{display:none}
 @media (max-width:1100px){
-  .home{grid-template-columns:1fr;padding:0 var(--pad) var(--pad);overflow:auto;gap:0}
+  .home{display:flex;flex-direction:column;padding:0 var(--pad) var(--pad);overflow:auto;gap:0}
   .side{display:none}.topnav{display:flex}
-  .main{overflow:visible}
-  .right{margin-top:22px}
+  .main{overflow:visible;flex:none}
+  .right{margin-top:22px;overflow:visible;flex:none}
 }
 @media (max-width:700px){.hero{grid-template-columns:1fr}}
 

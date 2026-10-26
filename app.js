@@ -17,7 +17,9 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const fmtDate = ts => { const d = new Date(ts); return `${DAYS[weekdayIdx(d)]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
 const longDate = () => new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-const COLORS = ['blue', 'orange', 'green', 'purple', 'yellow'];
+const COLORS = ['blue', 'orange', 'green', 'purple', 'yellow', 'pink', 'teal', 'coral', 'lime', 'sky', 'sand', 'grey'];
+const freeColor = () => COLORS.find(c => !M.notebooks.some(n => n.color === c)) || COLORS[M.notebooks.length % COLORS.length];
+const swatches = (sel, attr) => `<div class="row g8 wrap">${COLORS.map(c => `<button ${attr}="${c}" class="swatch ${sel === c ? 'on' : ''}"><span class="c-${c}"></span></button>`).join('')}</div>`;
 const PAPERS = ['lines', 'grid', 'dots', 'blank'];
 const PW = 1000, PH = 1414; // page units
 
@@ -87,6 +89,7 @@ const SUBJECTS = ['Mathematics', 'Calculus', 'Statistics', 'Physics', 'Chemistry
 const FIELDS = ['Economics', 'Computer science', 'Psychology', 'Engineering', 'Medicine', 'Law', 'Business', 'Design', 'Biology', 'Mathematics', 'History', 'Nursing'];
 const chipsFor = (list, target) => `<div class="chips">${list.map(n => `<button class="chip" data-fill="${target}" data-val="${esc(n)}">${esc(n)}</button>`).join('')}</div>`;
 function classNow() { const now = new Date(), m = now.getHours() * 60 + now.getMinutes(); return M.classes.find(c => occursOn(c, now) && toMin(c.start) <= m && m < toMin(c.end) && nbById(c.notebookId)); }
+function nextClass() { for (let i = 1; i <= 35; i++) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i); const cs = M.classes.filter(c => occursOn(c, d) && nbById(c.notebookId)).sort((a, b) => toMin(a.start) - toMin(b.start)); if (cs.length) return { c: cs[0], date: d, days: i }; } return null; }
 function classesToday() { const now = new Date(); return M.classes.filter(c => occursOn(c, now) && nbById(c.notebookId)).sort((a, b) => toMin(a.start) - toMin(b.start)); }
 function schedule(card, grade) { // grade 0 not yet, .5 almost, 1 knew
   const iv = card.interval || 0;
@@ -150,7 +153,13 @@ SCREENS.home = () => {
   const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
   const nowCard = now ? (() => { const nb = nbById(now.notebookId); return `<div class="c-${nb.color}"><div class="s14 b6">Now · ${now.start} – ${now.end}</div><div class="serif h2">${esc(nb.name)}</div><div class="s15 sec">${esc(now.room || 'From your week')}</div><div style="flex:1;min-height:18px"></div><button class="btn ink" style="align-self:flex-start" data-open-today="${nb.id}">Open today’s page</button></div>`; })()
     : later.length ? (() => { const c = later[0], nb = nbById(c.notebookId); return `<div class="c-${nb.color}"><div class="s14 b6">Next · ${c.start}</div><div class="serif h2">${esc(nb.name)}</div><div class="s15 sec">${esc(c.room || 'From your week')}</div><div style="flex:1;min-height:18px"></div><button class="btn ink" style="align-self:flex-start" data-open-nb="${nb.id}">Open notebook</button></div>`; })()
-    : `<div class="card"><div class="s14 b6 sec">${M.classes.length ? 'No more classes today' : 'Your week'}</div><div class="serif h2">${M.classes.length ? 'Free time' : 'Add your classes'}</div><div class="s15 sec">${M.classes.length ? 'Good moment for today’s questions.' : 'Add them once — the right notebook opens during each class.'}</div><div style="flex:1;min-height:18px"></div><button class="btn ${M.classes.length ? 'muted' : 'ink'}" style="align-self:flex-start" data-go="week">${M.classes.length ? 'See your week' : 'Add my week'}</button></div>`;
+    : (() => { if (!M.classes.length) return `<div class="card"><div class="s14 b6 sec">Your week</div><div class="serif h2">Add your classes</div><div class="s15 sec">Add them once — the right notebook opens during each class.</div><div style="flex:1;min-height:18px"></div><button class="btn ink" style="align-self:flex-start" data-go="week">Add my week</button></div>`;
+        const nx = nextClass(), seed = new Date().getDate(), pick = a => a[seed % a.length];
+        const head = pick(['Done for today', 'Classes are over', 'That’s it for today', 'No more classes today']);
+        const tip = due.length ? pick(['A good moment for today’s questions.', 'Two minutes of questions now saves an hour later.', 'Your questions are ready when you are.']) : M.cards.length ? pick(['Everything’s reviewed — nice.', 'Nothing due. Look over today’s notes?']) : pick(['Underline the key lines from today — they’ll come back as questions.', 'Mark what matters in today’s notes.']);
+        if (!nx) return `<div class="card"><div class="s14 b6 sec">${head}</div><div class="serif h2">No classes coming up</div><div class="s15 sec">${tip}</div><div style="flex:1;min-height:18px"></div><button class="btn muted" style="align-self:flex-start" data-go="week">See your week</button></div>`;
+        const nb = nbById(nx.c.notebookId), when = nx.days === 1 ? 'Tomorrow' : nx.days < 7 ? DAYS[weekdayIdx(nx.date)] : `${DAYS[weekdayIdx(nx.date)]} ${nx.date.getDate()} ${MONTHS[nx.date.getMonth()]}`;
+        return `<div class="card"><div class="s14 b6 sec">${head} · next up</div><div class="row g10" style="margin-top:2px"><span class="dot c-${nb.color}" style="width:14px;height:14px"></span><span class="serif h2">${esc(nb.name)}</span></div><div class="s16 b6">${when} at ${nx.c.start}${nx.c.room ? ' · ' + esc(nx.c.room) : ''}</div><div class="s15 sec">${tip}</div><div style="flex:1;min-height:18px"></div><button class="btn muted" style="align-self:flex-start" data-go="week">See your week</button></div>`; })();
   const dueCard = `<div class="card"><div class="s14 b6 sec">Due today</div><div class="serif h2">${due.length ? `${due.length} question${due.length > 1 ? 's' : ''}` : 'All caught up'}</div><div class="s15 sec">${due.length ? `From ${[...new Set(due.map(c => nbById(c.notebookId)?.name).filter(Boolean))].join(', ')} · about ${Math.max(1, Math.round(due.length * 0.4))} min` : M.cards.length ? 'Questions come back when you’re about to forget them.' : 'Underline or circle in your notes to make questions.'}</div><div style="flex:1;min-height:18px"></div>${due.length ? `<button class="btn ink" style="align-self:flex-start" data-start="due">Start</button>` : M.cards.length ? `<button class="btn muted" style="align-self:flex-start" data-start="practice">Practice anyway</button>` : `<button class="btn ink" style="align-self:flex-start" disabled>Start</button>`}</div>`;
   return `<div class="home">
     <nav class="side">
@@ -229,8 +238,8 @@ mount.week = () => {
 function openClassSheet(id, pre = {}) {
   const c = id ? M.classes.find(x => x.id === id) : null; const off = ui.weekOff || 0;
   ui.editClass = id || null;
-  ui.form = c ? { nb: c.notebookId, newName: '', color: null, day: c.anchor ? weekdayIdx(new Date(c.anchor + 'T00:00')) : c.day, start: c.start, end: c.end, room: c.room || '', repeat: c.repeat || 'weekly', until: c.until || '' }
-    : { nb: M.notebooks[0]?.id || 'new', newName: '', color: null, day: pre.day ?? (off ? 0 : weekdayIdx()), start: pre.start || '10:00', end: pre.end || '11:30', room: '', repeat: 'weekly', until: '' };
+  ui.form = c ? { nb: c.notebookId, newName: '', color: freeColor(), day: c.anchor ? weekdayIdx(new Date(c.anchor + 'T00:00')) : c.day, start: c.start, end: c.end, room: c.room || '', repeat: c.repeat || 'weekly', until: c.until || '' }
+    : { nb: 'new', newName: '', color: freeColor(), day: pre.day ?? (off ? 0 : weekdayIdx()), start: pre.start || '10:00', end: pre.end || '11:30', room: '', repeat: 'weekly', until: '' };
   ui.sheet = 'addclass'; renderSheet();
 }
 
@@ -353,6 +362,7 @@ function resample(pts, step) { const out = [[pts[0][0], pts[0][1]]]; let acc = 0
 function cuspCount(pts) { const r = resample(pts, 5), k = 2; let n = 0, last = -10; for (let i = k; i < r.length - k; i++) { const ax = r[i][0] - r[i - k][0], ay = r[i][1] - r[i - k][1], bx = r[i + k][0] - r[i][0], by = r[i + k][1] - r[i][1]; const m = Math.hypot(ax, ay) * Math.hypot(bx, by); if (m && (ax * bx + ay * by) / m < -0.5 && i - last > 3) { n++; last = i; } } return n; }
 function legLengths(pts) { const r = resample(pts, 5), k = 2, cut = [0]; let last = -10; for (let i = k; i < r.length - k; i++) { const ax = r[i][0] - r[i - k][0], ay = r[i][1] - r[i - k][1], bx = r[i + k][0] - r[i][0], by = r[i + k][1] - r[i][1]; const m = Math.hypot(ax, ay) * Math.hypot(bx, by); if (m && (ax * bx + ay * by) / m < -0.6 && i - last > 3) { cut.push(i); last = i; } } cut.push(r.length - 1); const out = []; for (let i = 1; i < cut.length; i++) out.push((cut[i] - cut[i - 1]) * 5); return out; }
 function near(a, b, d) { const ra = resample(a, 6), rb = resample(b, 6); for (const p of ra) for (const q of rb) if (Math.abs(p[0] - q[0]) < d && Math.abs(p[1] - q[1]) < d) return true; return false; }
+const simplify = (pts, d = 8) => { const o = [pts[0]]; for (const q of pts) { const l = o[o.length - 1]; if (Math.hypot(q[0] - l[0], q[1] - l[1]) >= d) o.push(q); } if (o[o.length - 1] !== pts[pts.length - 1]) o.push(pts[pts.length - 1]); return o; };
 const pathLen = pts => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return l; };
 
 /* ---------- editor ---------- */
@@ -512,19 +522,26 @@ class Editor {
   eraseAt(p) { const r = 14; const before = this.page.strokes.length; const keep = []; for (const st of this.page.strokes) { if (st.points.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r + st.size / 2)) this.erased.push(st); else keep.push(st); } if (keep.length !== before) { this.page.strokes = keep; this.redraw(); } }
   pushUndo(a) { a.slot = this.slot; this.undo.push(a); if (this.undo.length > 100) this.undo.shift(); this.redo = []; }
   applyOn(a, f) { const prev = this.slot; this.slot = a.slot; this.page = a.slot.page; this.pageId = a.slot.id; f(); saveMeta(); this.save(a.slot); this.redraw(a.slot); this.slot = prev; this.page = prev.page; this.pageId = prev.id; this.renderTools(); }
-  doUndo() { const a = this.undo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes = pg.strokes.filter(s => s !== a.stroke); if (a.card) M.cards = M.cards.filter(c => c.id !== a.card); } if (a.type === 'erase') { pg.strokes.push(...a.strokes); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'card') M.cards = M.cards.filter(c => c.id !== a.card.id); }); this.redo.push(a); }
-  doRedo() { const a = this.redo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes.push(a.stroke); if (a.cardObj) M.cards.push(a.cardObj); } if (a.type === 'erase') { pg.strokes = pg.strokes.filter(s => !a.strokes.includes(s)); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } if (a.type === 'card') M.cards.push(a.card); }); this.undo.push(a); }
+  doUndo() { const a = this.undo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes = pg.strokes.filter(s => s !== a.stroke); if (a.card) M.cards = M.cards.filter(c => c.id !== a.card); } if (a.type === 'erase') { pg.strokes.push(...a.strokes); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'card') M.cards = M.cards.filter(c => c.id !== a.card.id); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.added.includes(s)).concat(a.removed); if (a.cards) M.cards.push(...a.cards); } }); this.redo.push(a); }
+  doRedo() { const a = this.redo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes.push(a.stroke); if (a.cardObj) M.cards.push(a.cardObj); } if (a.type === 'erase') { pg.strokes = pg.strokes.filter(s => !a.strokes.includes(s)); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } if (a.type === 'card') M.cards.push(a.card); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.removed.includes(s)).concat(a.added); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } }); this.undo.push(a); }
   // Scratch-out: a deliberate back-and-forth scribble over ink erases it. Ordinary writing never triggers it.
   scratchOut(st) {
-    const pts = st.points; if (pts.length < 8) return false; const b = bboxOf(pts); if (b.w < 30) return false;
-    const legs = legLengths(pts); if (legs.length < 4) return false;
-    const span = Math.max(b.w, b.h), long = legs.filter(l => l >= Math.max(28, 0.55 * span)).length;
-    if (long < 4 || long / legs.length < 0.7) return false;
-    const E = { x: b.x - 6, y: b.y - 6, w: b.w + 12, h: b.h + 12 };
-    const victims = this.page.strokes.filter(o => { const ob = bboxOf(o.points), ow = Math.max(ob.w, 4), oh = Math.max(ob.h, 4); const ix = Math.min(ob.x + ow, E.x + E.w) - Math.max(ob.x, E.x), iy = Math.min(ob.y + oh, E.y + E.h) - Math.max(ob.y, E.y); return ix > 0 && iy > 0 && ix * iy >= 0.6 * ow * oh && near(o.points, pts, 10); });
-    if (!victims.length) return false;
-    this.page.strokes = this.page.strokes.filter(x => !victims.includes(x));
-    const cards = this.pruneCards(); this.pushUndo({ type: 'erase', strokes: victims, cards }); this.renderOverlay();
+    const raw = st.points; if (raw.length < 8) return false; const pts = simplify(raw, 3), b = bboxOf(raw); if (b.w < 30) return false;
+    const legs = legLengths(pts); if (legs.length < 3) return false;
+    const span = Math.max(b.w, b.h), long = legs.filter(l => l >= Math.max(28, 0.5 * span)).length;
+    if (long < 3 || long / legs.length < 0.65) return false;
+    const R = resample(raw, 4), near12 = q => q[0] >= b.x - 4 && q[0] <= b.x + b.w + 4 && q[1] >= b.y - 4 && q[1] <= b.y + b.h + 4 && R.some(r => Math.abs(r[0] - q[0]) < 12 && Math.abs(r[1] - q[1]) < 12);
+    const removed = [], added = []; let hits = 0;
+    for (const o of this.page.strokes) {
+      const ob = bboxOf(o.points); if (ob.x > b.x + b.w + 4 || ob.x + ob.w < b.x - 4 || ob.y > b.y + b.h + 4 || ob.y + ob.h < b.y - 4) continue;
+      const cov = o.points.map(near12), n = cov.filter(Boolean).length; if (!n) continue; hits += n;
+      const runs = []; let cur = []; o.points.forEach((q, i) => { if (cov[i]) { if (cur.length) runs.push(cur); cur = []; } else cur.push(q); }); if (cur.length) runs.push(cur);
+      const keep = runs.filter(r => r.length >= 2 && pathLen(r) > 4).sort((x, y) => y.length - x.length);
+      removed.push(o); keep.forEach((r, i) => added.push({ ...o, id: i === 0 ? o.id : uid(), points: r }));
+    }
+    if (hits < 5) return false;
+    this.page.strokes = this.page.strokes.filter(x => !removed.includes(x)).concat(added);
+    const cards = this.pruneCards(); this.pushUndo({ type: 'replace', removed, added, cards }); this.renderOverlay();
     return true;
   }
   pruneCards() {
@@ -535,7 +552,7 @@ class Editor {
     return gone;
   }
   detectMark(st) {
-    const pr = M.profile, pts = st.points; if (pts.length < 4) return; const b = bboxOf(pts), len = pathLen(pts);
+    const pr = M.profile, pts = st.points; if (pts.length < 4) return; const b = bboxOf(pts), len = pathLen(simplify(pts));
     const others = this.page.strokes.filter(x => x !== st && x.tool === 'pen').map(x => ({ x, b: bboxOf(x.points) }));
     const a = pts[0], z = pts[pts.length - 1], chord = Math.hypot(z[0] - a[0], z[1] - a[1]);
     const ang = Math.abs(Math.atan2(z[1] - a[1], z[0] - a[0]) * 180 / Math.PI), flat = Math.min(ang, 180 - ang);
@@ -557,7 +574,7 @@ class Editor {
     }
     // circle: a closed, smooth loop around something
     const gap = Math.hypot(z[0] - a[0], z[1] - a[1]);
-    if (pr.circleQuiz && b.w >= 40 && b.h >= 26 && gap < 0.3 * Math.max(b.w, b.h) && len > 1.9 * Math.max(b.w, b.h) && len < 4.5 * Math.max(b.w, b.h) && cuspCount(pts) <= 1) {
+    if (pr.circleQuiz && b.w >= 40 && b.h >= 26 && gap < 0.3 * Math.max(b.w, b.h) && len > 1.9 * Math.max(b.w, b.h) && len < 4.5 * Math.max(b.w, b.h) && cuspCount(simplify(pts, 3)) <= 2) {
       const inside = others.filter(o => o.b.x >= b.x - 6 && o.b.y >= b.y - 6 && o.b.x + o.b.w <= b.x + b.w + 6 && o.b.y + o.b.h <= b.y + b.h + 6);
       if (inside.length) { const rect = { x: b.x + 4, y: b.y + 4, w: b.w - 8, h: b.h - 8 }; if (!this.overlapsCard(rect)) this.addCard(rect, 'circle', st); }
     }
@@ -604,12 +621,12 @@ class Editor {
 SHEETS.newnb = () => `<div class="dim" data-dim><div class="sheet col g16">
   <div class="row"><span class="serif h2 grow">New notebook</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
   <div class="col g8"><span class="label">Subject</span><input class="field" id="nb-name" placeholder="e.g. Mathematics" autocomplete="off" autocapitalize="words" enterkeyhint="done">${chipsFor(SUBJECTS.filter(x => !M.notebooks.some(n => n.name.toLowerCase() === x.toLowerCase())).slice(0, 10), 'nb-name')}</div>
-  <div class="col g8"><span class="label">Colour</span><div class="row g12" id="nb-colors">${COLORS.map((c, i) => `<button data-pick-color="${c}" style="padding:4px;border-radius:50%;${i === M.notebooks.length % 5 ? 'box-shadow:0 0 0 2px #171614' : ''}"><span class="c-${c}" style="display:block;width:34px;height:34px;border-radius:50%"></span></button>`).join('')}</div></div>
+  <div class="col g8"><span class="label">Colour</span>${swatches(freeColor(), 'data-pick-color')}</div>
   <div class="col g8"><span class="label">Paper</span><div class="seg" id="nb-paper" style="align-self:flex-start">${PAPERS.map((p, i) => `<button class="${i === 0 ? 'on' : ''}" data-pick-paper="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div><span class="s13 sec" id="nb-hint">You can switch any time in the toolbar.</span></div>
-  <button class="btn ink" data-create-nb>Create notebook</button></div></div>`;
+  <div class="sheet-foot"><button class="btn ink" style="width:100%" data-create-nb>Create notebook</button></div></div></div>`;
 mountSheet.newnb = () => {
-  const st = { color: COLORS[M.notebooks.length % 5], paper: 'lines', touched: false }; const name = $('#nb-name');
-  const paint = () => { $$('[data-pick-color]').forEach(b => b.style.boxShadow = b.dataset.pickColor === st.color ? '0 0 0 2px #171614' : ''); $$('[data-pick-paper]').forEach(b => b.classList.toggle('on', b.dataset.pickPaper === st.paper)); };
+  const st = { color: freeColor(), paper: 'lines', touched: false }; const name = $('#nb-name');
+  const paint = () => { $$('[data-pick-color]').forEach(b => b.classList.toggle('on', b.dataset.pickColor === st.color)); $$('[data-pick-paper]').forEach(b => b.classList.toggle('on', b.dataset.pickPaper === st.paper)); };
   name.addEventListener('input', () => { if (!st.touched) { st.paper = suggestPaper(name.value); paint(); $('#nb-hint').textContent = st.paper === 'grid' ? `Grid suggested for ${name.value} — switch any time.` : 'You can switch any time in the toolbar.'; } });
   $('.sheet').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.pickColor) { st.color = b.dataset.pickColor; paint(); } if (b.dataset.pickPaper) { st.paper = b.dataset.pickPaper; st.touched = true; paint(); }
     if (b.dataset.createNb !== undefined) { const n = name.value.trim(); if (!n) { name.focus(); return; } const nb = { id: uid(), name: n, color: st.color, paper: st.paper, createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); saveMeta(); ui.sheet = null; toast(`${n} created`); go('notebook', { nbId: nb.id }); } });
@@ -622,15 +639,19 @@ SHEETS.addclass = () => {
   const taken = new Set(M.notebooks.map(n => n.name.toLowerCase()));
   return `<div class="dim" data-dim><div class="sheet col g16">
   <div class="row"><span class="serif h2 grow">${c ? 'Edit class' : 'Add class'}</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
-  <div class="col g8"><span class="label">Subject</span><div class="chips">${M.notebooks.map(n => `<button class="chip ${f.nb === n.id ? 'on' : ''}" data-f-nb="${n.id}"><span class="dot c-${n.color}"></span>${esc(n.name)}</button>`).join('')}<button class="chip ${f.nb === 'new' ? 'on' : ''}" data-f-nb="new">${I('plus', f.nb === 'new' ? '#fff' : '#171614', 16)}New subject</button></div>
-    ${f.nb === 'new' ? `<input class="field" id="cl-name" data-f="newName" placeholder="e.g. Physics" value="${esc(f.newName)}" autocomplete="off" autocapitalize="words">${chipsFor(SUBJECTS.filter(x => !taken.has(x.toLowerCase())).slice(0, 10), 'cl-name')}<div class="s13 sec">A notebook for it is created too — ready for the first class.</div>` : ''}</div>
+  <div class="col g10"><span class="label">Subject</span>
+    ${M.notebooks.length ? `<div class="seg" style="align-self:flex-start"><button class="${f.nb === 'new' ? 'on' : ''}" data-f-nb="new">New subject</button><button class="${f.nb !== 'new' ? 'on' : ''}" data-f-mine>My subjects · ${M.notebooks.length}</button></div>` : ''}
+    ${f.nb === 'new' ? `<input class="field" id="cl-name" data-f="newName" placeholder="e.g. Physics" value="${esc(f.newName)}" autocomplete="off" autocapitalize="words">${chipsFor(SUBJECTS.filter(x => !taken.has(x.toLowerCase())).slice(0, 8), 'cl-name')}`
+      : `<div class="chips">${M.notebooks.map(n => `<button class="chip ${f.nb === n.id ? 'on' : ''}" data-f-nb="${n.id}"><span class="dot c-${n.color}"></span>${esc(n.name)}</button>`).join('')}</div>`}
+    <span class="label" style="margin-top:4px">Colour</span>${swatches(f.nb === 'new' ? f.color : nbById(f.nb)?.color, 'data-f-color')}
+    ${f.nb === 'new' ? '<div class="s13 sec">A notebook in this colour is created too — ready for the first class.</div>' : ''}</div>
   <div class="col g8"><span class="label">Day</span><div class="chips">${DAYS.map((d, i) => `<button class="chip ${f.day === i ? 'on' : ''}" data-f-day="${i}">${d} ${dateOfWeekday(off, i).getDate()}</button>`).join('')}</div></div>
   <div class="row g12"><div class="col g8 grow"><span class="label">Starts</span><input type="time" step="900" class="field" data-f="start" value="${f.start}"></div><div class="col g8 grow"><span class="label">Ends</span><input type="time" step="900" class="field" data-f="end" value="${f.end}"></div></div>
   <div class="col g8"><span class="label">Repeats</span><div class="seg" style="align-self:flex-start;flex-wrap:wrap">${[['once', 'Once'], ['weekly', 'Every week'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Monthly']].map(([k, t]) => `<button class="${f.repeat === k ? 'on' : ''}" data-f-rep="${k}">${t}</button>`).join('')}</div></div>
   ${f.repeat !== 'once' ? `<div class="col g8"><span class="label">Until (optional) — e.g. end of semester</span><div class="row g8"><input type="date" class="field grow" data-f="until" value="${f.until}">${f.until ? `<button class="btn muted sm" data-f-clear>No end</button>` : ''}</div></div>` : ''}
   <div class="col g8"><span class="label">Room (optional)</span><input class="field" data-f="room" value="${esc(f.room)}" placeholder="e.g. Room 204" autocomplete="off"></div>
   <div class="s14 b5 sec">${esc(sum)}</div>
-  <div class="row g12">${c ? '<button class="btn muted grow" data-del-class>Delete</button>' : ''}<button class="btn ink grow" data-save-class>${c ? 'Save' : 'Add to my week'}</button></div></div></div>`;
+  <div class="row g12 sheet-foot">${c ? '<button class="btn muted grow" data-del-class>Delete</button>' : ''}<button class="btn ink grow" data-save-class>${c ? 'Save' : 'Add to my week'}</button></div></div></div>`;
 };
 mountSheet.addclass = () => {
   const f = ui.form, c = ui.editClass ? M.classes.find(x => x.id === ui.editClass) : null, sh = $('.sheet');
@@ -638,13 +659,15 @@ mountSheet.addclass = () => {
   sh.addEventListener('change', e => { if (e.target.dataset.f) { f[e.target.dataset.f] = e.target.value; if (e.target.dataset.f === 'until') renderSheet(); } });
   sh.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
     if (d.fNb) { f.nb = d.fNb; return renderSheet(); }
+    if (d.fMine !== undefined) { if (f.nb === 'new') f.nb = M.notebooks[0]?.id || 'new'; return renderSheet(); }
+    if (d.fColor) { if (f.nb === 'new') f.color = d.fColor; else { nbById(f.nb).color = d.fColor; saveMeta(); } return renderSheet(); }
     if (d.fDay !== undefined) { f.day = +d.fDay; return renderSheet(); }
     if (d.fRep) { f.repeat = d.fRep; return renderSheet(); }
     if (d.fClear !== undefined) { f.until = ''; return renderSheet(); }
     if (d.saveClass !== undefined) {
       if (!f.start || !f.end || toMin(f.end) <= toMin(f.start)) return toast('End time should be after the start');
       let nbId = f.nb;
-      if (nbId === 'new') { const n = f.newName.trim(); if (!n) return toast('Write the subject name first'); const nb = { id: uid(), name: n, color: COLORS[M.notebooks.length % 5], paper: suggestPaper(n), createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); nbId = nb.id; }
+      if (nbId === 'new') { const n = f.newName.trim(); if (!n) return toast('Write the subject name first'); const nb = { id: uid(), name: n, color: f.color || freeColor(), paper: suggestPaper(n), createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); nbId = nb.id; }
       const off = ui.weekOff || 0; let anchor;
       if (c && c.anchor && f.day === weekdayIdx(new Date(c.anchor + 'T00:00'))) anchor = c.anchor; else anchor = dayKey(dateOfWeekday(off, f.day));
       const data = { notebookId: nbId, day: f.day, start: f.start, end: f.end, room: f.room.trim(), repeat: f.repeat, anchor, until: f.repeat === 'once' ? '' : f.until };
@@ -663,10 +686,10 @@ SHEETS.quiz = () => { const ps = pagesOf(ui.nbId).filter(p => p.dateKey === dayK
 mountSheet.quiz = () => $('.sheet').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.qToday !== undefined) startQuiz('nb', { today: true }); if (b.dataset.qAll !== undefined) startQuiz('nb', { count: 10 }); });
 SHEETS.nbsettings = () => { const nb = nbById(ui.nbId); return `<div class="dim" data-dim><div class="sheet col g16"><div class="row"><span class="serif h2 grow">Notebook</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
   <div class="col g8"><span class="label">Name</span><input class="field" id="ns-name" value="${esc(nb.name)}" autocomplete="off"></div>
-  <div class="col g8"><span class="label">Colour</span><div class="row g12">${COLORS.map(c => `<button data-ns-color="${c}" style="padding:4px;border-radius:50%;${nb.color === c ? 'box-shadow:0 0 0 2px #171614' : ''}"><span class="c-${c}" style="display:block;width:34px;height:34px;border-radius:50%"></span></button>`).join('')}</div></div>
+  <div class="col g8"><span class="label">Colour</span>${swatches(nb.color, 'data-ns-color')}</div>
   <div class="row g12"><button class="btn muted grow" data-ns-del>Delete notebook</button><button class="btn ink grow" data-ns-save>Save</button></div></div></div>`; };
 mountSheet.nbsettings = () => { const nb = nbById(ui.nbId); let color = nb.color; $('.sheet').addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.nsColor) { color = b.dataset.nsColor; $$('[data-ns-color]').forEach(x => x.style.boxShadow = x.dataset.nsColor === color ? '0 0 0 2px #171614' : ''); }
+  if (b.dataset.nsColor) { color = b.dataset.nsColor; $$('[data-ns-color]').forEach(x => x.classList.toggle('on', x.dataset.nsColor === color)); }
   if (b.dataset.nsSave !== undefined) { nb.name = $('#ns-name').value.trim() || nb.name; nb.color = color; saveMeta(); ui.sheet = null; render(); }
   if (b.dataset.nsDel !== undefined && confirm(`Delete “${nb.name}” and all its pages? This can’t be undone.`)) { for (const p of pagesOf(nb.id)) { await DB.del('page:' + p.id); pageCache.delete(p.id); } M.pages = M.pages.filter(p => p.notebookId !== nb.id); M.cards = M.cards.filter(c => c.notebookId !== nb.id); M.classes = M.classes.filter(c => c.notebookId !== nb.id); M.notebooks = M.notebooks.filter(n => n.id !== nb.id); saveMeta(); go('home'); } }); };
 SHEETS.tmintro = () => `<div class="dim" data-dim><div class="sheet col g16" style="width:min(520px,100%)">
