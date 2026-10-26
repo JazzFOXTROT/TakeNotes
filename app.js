@@ -1,4 +1,5 @@
 'use strict';
+const BUILD = '1.7';
 /* TakeNotes — web app (local-first, works offline when installed) */
 
 /* ---------- utils ---------- */
@@ -274,7 +275,7 @@ SCREENS.settings = () => {
     ${group('Questions', [['Questions a day', 'For the daily review', `<div class="seg">${[3, 5, 10, 15].map(v => `<button class="${pr.daily === v ? 'on' : ''}" data-daily="${v}">${v}</button>`).join('')}</div>`], ['Pen underline & circle add to the quiz', 'The marker always adds. Turn this off if you underline with the pen just for emphasis', tg('penMarks')]])}
     ${group('Writing', [['Draw with finger', 'Off: only Apple Pencil writes, fingers scroll (palm rejection)', tg('fingerDraw')]])}
     ${group('Your data', [['Everything stays on this iPad', 'Export a backup now and then — and after big lectures', `<button class="btn muted sm" data-export>Export</button>`], ['Restore from a backup', '', `<label class="btn muted sm">Import<input type="file" accept="application/json,.json" data-import hidden></label>`], ['Start over', 'Deletes all notebooks on this iPad', `<button class="btn muted sm" data-reset>Delete all</button>`]])}
-    <div class="s13 sec" style="margin-top:12px">TakeNotes · web version 1.0</div>
+    <div class="s13 sec" style="margin-top:12px">TakeNotes · version ${BUILD}</div>
   </div></div>`;
 };
 
@@ -824,7 +825,11 @@ document.addEventListener('dblclick', e => e.preventDefault(), { passive: false 
 (async function boot() {
   try { await DB.open(); const m = await DB.get('meta'); if (m) M = Object.assign(freshMeta(), m, { profile: Object.assign(freshMeta().profile, m.profile) }); } catch (err) { console.error(err); }
   navigator.storage?.persist?.();
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => { });
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    const hadController = !!navigator.serviceWorker.controller; let reloading = false;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => { reg.update(); document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update(); }); }).catch(() => { });
+    navigator.serviceWorker.addEventListener('controllerchange', async () => { if (!hadController || reloading) return; reloading = true; try { await DB.set('meta', M); if (editor?.page) await savePageNow(editor.page); } catch { } location.reload(); });
+  }
   ui.screen = M.profile.onboarded ? 'home' : 'ob'; render();
   setInterval(() => { if (ui.screen === 'home' && !ui.sheet) render(); }, 60000);
 })();
