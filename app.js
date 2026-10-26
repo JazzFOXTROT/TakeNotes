@@ -45,7 +45,7 @@ const DB = {
 };
 const freshMeta = () => ({
   v: 1,
-  profile: { name: '', study: '', daily: 5, onboarded: false, underlineQuiz: true, circleQuiz: true, fingerDraw: false, installHidden: false, tmIntro: false },
+  profile: { name: '', study: '', daily: 5, onboarded: false, penMarks: true, fingerDraw: false, installHidden: false, tmIntro: false },
   notebooks: [], classes: [], pages: [], cards: []
 });
 let M = freshMeta();
@@ -133,11 +133,11 @@ SCREENS.ob = () => {
     1: ['What should we call you?', 'We’ll use it in greetings.', `<input class="field" id="f-name" placeholder="Your name" value="${esc(pr.name)}" autocomplete="given-name" enterkeyhint="next">`],
     2: ['What do you study?', 'Optional — it helps us suggest the right paper.', `<input class="field" id="f-study" placeholder="e.g. Economics" value="${esc(pr.study)}" autocomplete="off" enterkeyhint="next">${chipsFor(FIELDS, 'f-study')}`],
     3: ['How many questions a day?', 'They come from your own notes. You can change this later.', `<div class="col g10">${[[3, 'About 2 minutes', 'Light'], [5, 'About 3 minutes', 'Regular'], [10, 'About 6 minutes', 'Serious'], [15, 'About 9 minutes', 'Intense']].map(([n, a, b]) => `<button class="option ${pr.daily === n ? 'on' : ''}" data-daily="${n}"><span class="grow">${n} a day<span class="sub">${a}</span></span><span class="s14 b5" style="opacity:.7">${b}</span></button>`).join('')}</div>`],
-    4: ['Mark a line — it’s in your quiz', 'Questions come only from what you mark. No AI.', `<div class="col g10">
-      ${[['Underline a line', 'The line is hidden in the quiz — you recall it.', '<span style="font-family:var(--hand);font-size:28px;border-bottom:2px solid #171614;padding:0 2px">slope of the tangent</span>'],
-         ['Circle a word or formula', 'Only the circled part is hidden.', '<span style="font-family:var(--hand);font-size:28px;border:2px solid #171614;border-radius:50%;padding:0 18px">2x</span>'],
-         ['Or use the Q tool', 'Drag a box around anything — a diagram, a cut-out.', `<span class="pill" style="background:var(--ink);color:#fff">Q</span>`]].map(([a, b, demo]) => `<div class="option" style="cursor:default"><span class="grow">${a}<span class="sub">${b}</span></span>${demo}</div>`).join('')}
-      <div class="s15 sec" style="margin-top:4px">A <b>Q</b> appears next to each marked part. Tap it to take it out. Test myself and daily questions use the same marks.</div></div>`]
+    4: ['Mark it — it’s in your quiz', 'Questions come only from what you mark. No AI.', `<div class="col g10">
+      ${[['Swipe the marker over it', 'Any shape — over, under or around, as messy as you like. That part is hidden in the quiz.', '<span style="font-family:var(--hand);font-size:28px;background:rgba(240,223,150,.8);border-radius:6px;padding:0 6px">slope of the tangent</span>'],
+         ['Or underline / circle with the pen', 'Quick pen marks work too. You can turn this off in Settings.', '<span style="font-family:var(--hand);font-size:28px;border-bottom:2px solid #171614;padding:0 2px">2x + 1</span>'],
+         ['Or the Q tool', 'Drag a box around anything — a diagram, a cut-out.', `<span class="pill" style="background:var(--ink);color:#fff">Q</span>`]].map(([a, b, demo]) => `<div class="option" style="cursor:default"><span class="grow">${a}<span class="sub">${b}</span></span>${demo}</div>`).join('')}
+      <div class="s15 sec" style="margin-top:4px">A <b>Q</b> appears on the right of each marked part. Tap it to take it out.</div></div>`]
   }[s];
   return `<div class="ob">${obTop(s, N)}<div class="ob-body"><div class="s14 b6 sec">Step ${s} of ${N}</div><div class="serif h1">${body[0]}</div><div class="s17 sec">${body[1]}</div><div style="height:12px"></div>${body[2]}</div>
     <div class="ob-foot"><button class="btn ink" data-ob-next>${s === N ? 'Start' : 'Continue'}</button>${s === 4 ? `<div class="s13 sec" style="text-align:center;margin-top:12px">Your notes stay on this iPad. You can export a backup in Settings.</div>` : ''}</div></div>`;
@@ -271,7 +271,7 @@ SCREENS.settings = () => {
   <div class="scroll" style="flex:1;padding:6px var(--pad) var(--pad)"><div class="col g10" style="max-width:760px;margin:0 auto">
     <div class="serif h1">Settings</div>
     ${group('You', [['Name', '', `<input class="field" style="width:220px;background:var(--canvas);font-size:16px;padding:10px 14px" value="${esc(pr.name)}" data-pf="name">`], ['What you study', '', `<input class="field" style="width:220px;background:var(--canvas);font-size:16px;padding:10px 14px" value="${esc(pr.study)}" data-pf="study">`]])}
-    ${group('Questions', [['Questions a day', 'For the daily review', `<div class="seg">${[3, 5, 10, 15].map(v => `<button class="${pr.daily === v ? 'on' : ''}" data-daily="${v}">${v}</button>`).join('')}</div>`], ['Underline adds to the quiz', 'Turn off if you underline for emphasis', tg('underlineQuiz')], ['Circle adds to the quiz', 'A closed loop around a word or formula', tg('circleQuiz')]])}
+    ${group('Questions', [['Questions a day', 'For the daily review', `<div class="seg">${[3, 5, 10, 15].map(v => `<button class="${pr.daily === v ? 'on' : ''}" data-daily="${v}">${v}</button>`).join('')}</div>`], ['Pen underline & circle add to the quiz', 'The marker always adds. Turn this off if you underline with the pen just for emphasis', tg('penMarks')]])}
     ${group('Writing', [['Draw with finger', 'Off: only Apple Pencil writes, fingers scroll (palm rejection)', tg('fingerDraw')]])}
     ${group('Your data', [['Everything stays on this iPad', 'Export a backup now and then — and after big lectures', `<button class="btn muted sm" data-export>Export</button>`], ['Restore from a backup', '', `<label class="btn muted sm">Import<input type="file" accept="application/json,.json" data-import hidden></label>`], ['Start over', 'Deletes all notebooks on this iPad', `<button class="btn muted sm" data-reset>Delete all</button>`]])}
     <div class="s13 sec" style="margin-top:12px">TakeNotes · web version 1.0</div>
@@ -332,7 +332,7 @@ function strokePath(ctx, pts, s) { ctx.beginPath(); ctx.moveTo(pts[0][0] * s, pt
 function drawStroke(ctx, st, s) {
   const pts = st.points; if (!pts.length) return;
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = st.color; ctx.fillStyle = st.color;
-  if (st.tool === 'hl') { ctx.globalAlpha = .38; ctx.globalCompositeOperation = 'multiply'; ctx.lineWidth = st.size * s; if (pts.length === 1) pts.push([pts[0][0] + .1, pts[0][1]]); strokePath(ctx, pts, s); ctx.stroke(); ctx.restore(); return; }
+  if (st.tool === 'hl') { ctx.globalAlpha = .6; ctx.globalCompositeOperation = 'multiply'; ctx.lineWidth = st.size * s; if (pts.length === 1) pts.push([pts[0][0] + .1, pts[0][1]]); strokePath(ctx, pts, s); ctx.stroke(); ctx.restore(); return; }
   if (pts.length === 1) { ctx.beginPath(); ctx.arc(pts[0][0] * s, pts[0][1] * s, st.size * s * .5, 0, 7); ctx.fill(); ctx.restore(); return; }
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i], pr = (a[2] + b[2]) / 2; ctx.lineWidth = Math.max(.6, st.size * s * (0.45 + pr * 0.9));
@@ -384,7 +384,7 @@ class Editor {
     this.undo = []; this.redo = []; this.scrollY = 0; this.touches = new Map(); this.revealed = {}; this.slots = [];
     this.nbId = M.pages.find(p => p.id === pageId)?.notebookId;
     this.build(); this.init();
-    this.onResize = () => this.layout(); addEventListener('resize', this.onResize);
+    this.zoom = 1; this.onResize = () => this.layout(); addEventListener('resize', this.onResize);
   }
   get nb() { return nbById(this.nbId); }
   build() {
@@ -414,7 +414,7 @@ class Editor {
     this.layout();
     const i = Math.max(0, this.slots.findIndex(s => s.id === this.startId));
     this.scrollY = 0; this.scrollBy(this.slotTop(i)); await this.activate(this.slots[i]); this.updateVisible();
-    if (!M.profile.tipShown) { M.profile.tipShown = true; saveMeta(); toast('Write with Apple Pencil · scroll with a finger · a new page is always waiting below'); }
+    if (!M.profile.tipShown) { M.profile.tipShown = true; saveMeta(); toast('Pen writes · marker makes questions · two fingers zoom'); } if (ui.paperTip) { toast(ui.paperTip); ui.paperTip = null; }
   }
   addSlot(id) {
     const el = document.createElement('div'); el.className = 'page'; el.dataset.slot = id;
@@ -447,17 +447,18 @@ class Editor {
       <div class="tool-group">${t('pen', 'pen', 'Pen')}${t('hl', 'hl', 'Highlighter')}${t('eraser', 'eraser', 'Eraser')}${t('move', 'move', 'Move pictures')}${t('q', 'q', 'Q — drag a box to make a question')}</div>
       <div class="tool-group">${['#171614', '#3B63C4', '#C2410C', '#15803D'].map(c => `<button class="sw ${this.color === c ? 'on' : ''}" data-color="${c}"><i style="background:${c}"></i></button>`).join('')}<button class="icon-btn" data-ed="size" title="Line size"><span style="width:${{ s: 6, m: 10, l: 15 }[this.size]}px;height:${{ s: 6, m: 10, l: 15 }[this.size]}px;border-radius:50%;background:#171614"></span></button></div>
       <div class="pop-wrap"><button class="tool-group paper-btn" data-ed="paper">${this.page.paper[0].toUpperCase() + this.page.paper.slice(1)} ${I('M7 10l5 5 5-5', '#6F6B64', 18)}</button>${this.paperOpen ? `<div class="pop">${PAPERS.map(p => `<button class="${this.page.paper === p ? 'on' : ''}" data-paper="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div>` : ''}</div>
-      <div class="tool-group"><button class="icon-btn" data-ed="photo" title="Insert photo">${I('photo')}</button>${this.sel ? `<button class="icon-btn" data-ed="delimg" title="Delete picture">${I('trash')}</button>` : ''}<button class="icon-btn" data-ed="undo" title="Undo">${I('undo')}</button><button class="icon-btn" data-ed="redo" title="Redo">${I('redo')}</button></div>`;
+      ${(this.zoom || 1) > 1 ? `<button class="tool-group paper-btn" data-ed="fit">${Math.round(this.zoom * 100)}%</button>` : ''}<div class="tool-group"><button class="icon-btn" data-ed="photo" title="Insert photo">${I('photo')}</button>${this.sel ? `<button class="icon-btn" data-ed="delimg" title="Delete picture">${I('trash')}</button>` : ''}<button class="icon-btn" data-ed="undo" title="Undo">${I('undo')}</button><button class="icon-btn" data-ed="redo" title="Redo">${I('redo')}</button></div>`;
   }
   get gap() { return 24; }
   slotTop(i) { return i * (this.h + this.gap); }
   sizeSlot(s) { s.el.style.width = this.w + 'px'; s.el.style.height = this.h + 'px'; s.el.style.marginBottom = this.gap + 'px'; }
-  layout() {
-    const avail = this.scroller.clientWidth - 2 * parseFloat(getComputedStyle(this.inner).paddingLeft); const w = Math.min(avail, 1100);
+  layout(keepScroll = true) {
+    const pad = parseFloat(getComputedStyle(this.inner).paddingLeft), avail = this.scroller.clientWidth - 2 * pad; const w = Math.min(avail, 1100) * (this.zoom || 1);
     const keep = this.h ? this.scrollY / (this.h + this.gap) : 0;
-    this.w = w; this.s = w / PW; this.h = PH * this.s; this.dpr = Math.min(2.5, devicePixelRatio || 1);
+    this.w = w; this.s = w / PW; this.h = PH * this.s; this.dpr = Math.min(2.5, devicePixelRatio || 1, Math.sqrt(6e6 / (w * this.h)));
+    this.inner.style.width = (this.zoom || 1) > 1 ? (w + 2 * pad) + 'px' : '';
     for (const s of this.slots) { this.sizeSlot(s); s.ready = false; }
-    this.scrollY = 0; this.scrollBy(keep * (this.h + this.gap)); this.updateVisible();
+    if (keepScroll) { this.scrollY = 0; this.scrollX = 0; this.scrollBy(keep * (this.h + this.gap)); } this.updateVisible();
   }
   async prepare(s) {
     s.ready = true; if (!s.page) s.page = await loadPage(s.id); if (!s.page) return; (s.page.images || []).forEach(im => this.clampImg(im)); const meta = M.pages.find(x => x.id === s.id); if (meta && meta.n === undefined) { meta.n = s.page.strokes.length + (s.page.images || []).length; saveMeta(); }
@@ -475,14 +476,29 @@ class Editor {
   renderOverlay(sl = this.slot) {
     if (!sl || !sl.page) return; const cs = cardsOfPage(sl.id), s = this.s, active = sl === this.slot;
     let html = cs.map(c => this.testing ? (this.revealed[c.id] ? `<div class="qcover revealed" style="left:${(c.x - 6) * s}px;top:${(c.y - 6) * s}px;width:${(c.w + 12) * s}px;height:${(c.h + 12) * s}px;pointer-events:none"></div>` : `<button class="qcover" data-reveal-card="${c.id}" style="left:${(c.x - 6) * s}px;top:${(c.y - 6) * s}px;width:${(c.w + 12) * s}px;height:${(c.h + 12) * s}px">Tap to reveal</button>`)
-      : `<button class="qb" data-card="${c.id}" style="left:${(PW - 26) * s}px;top:${(c.y + c.h / 2) * s - 14}px">Q</button>`).join('');
+      : `<button class="qb" data-card="${c.id}" style="left:${(PW - 26) * s}px;top:${this.qTop(c, cs, s)}px">Q</button>`).join('');
     if (this.asking) { const c = cs.find(x => x.id === this.asking); if (c) { const left = Math.min((c.x + c.w + 16) * s, this.w - 240), top = Math.max(0, (c.y - 10) * s); html += `<div class="ask" style="left:${left}px;top:${top}px"><div class="s15 b7">Did you remember it?</div><div class="row g8"><button class="btn muted sm" data-tm="0">Not yet</button><button class="btn ink sm" data-tm="1">Knew it</button></div><div class="s12 sec">“Not yet” brings it back soon.</div></div>`; } }
     if (active && this.sel) { const im = (sl.page.images || []).find(i => i.id === this.sel); if (im) html += `<div class="img-sel" style="left:${im.x * s}px;top:${im.y * s}px;width:${im.w * s}px;height:${im.h * s}px"><i></i></div>`; }
+    if (active && this.drag && !this.drag.resize) { const im = this.drag.im; html += `<img src="${im.src}" style="position:absolute;left:${im.x * s}px;top:${im.y * s}px;width:${im.w * s}px;height:${im.h * s}px;opacity:.85;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.18);border-radius:4px">`; }
     if (active && this.box) { const b = this.box; html += `<div class="sel-box" style="left:${Math.min(b.x0, b.x1) * s}px;top:${Math.min(b.y0, b.y1) * s}px;width:${Math.abs(b.x1 - b.x0) * s}px;height:${Math.abs(b.y1 - b.y0) * s}px"></div>`; }
     sl.over.innerHTML = html;
   }
+  qTop(c, cs, s) { const ys = cs.slice().sort((a, b) => (a.y + a.h / 2) - (b.y + b.h / 2)); let last = -1e9; for (const x of ys) { const t = Math.max((x.y + x.h / 2) * s - 14, last + 32); if (x === c) return t; last = t; } return 0; }
   renderAllOverlays() { for (const s of this.slots) if (s.ready) this.renderOverlay(s); }
-  scrollBy(dy) { const max = Math.max(0, this.inner.scrollHeight - this.scroller.clientHeight); this.scrollY = Math.min(max, Math.max(0, this.scrollY + dy)); this.inner.style.transform = `translateY(${-this.scrollY}px)`; if (dy) this.updateVisible(); }
+  scrollBy(dy, dx = 0) { const max = Math.max(0, this.inner.scrollHeight - this.scroller.clientHeight), maxX = Math.max(0, this.inner.scrollWidth - this.scroller.clientWidth); this.scrollY = Math.min(max, Math.max(0, this.scrollY + dy)); this.scrollX = Math.min(maxX, Math.max(0, (this.scrollX || 0) + dx)); this.inner.style.transformOrigin = '0 0'; this.inner.style.transform = `translate(${-this.scrollX}px,${-this.scrollY}px)`; if (dy) this.updateVisible(); }
+  commitZoom(P) {
+    const c = P.c || P.c0, fx = (P.c0[0] + P.sx) / P.W, fy = (P.c0[1] + P.sy) / P.H; let z = Math.round(P.z0 * P.k * 20) / 20; if (z < 1.08) z = 1; z = Math.min(3, z);
+    this.zoom = z; this.layout(false); const W = this.inner.scrollWidth, H = this.inner.scrollHeight;
+    this.scrollX = 0; this.scrollY = 0; this.scrollBy(fy * H - c[1], fx * W - c[0]); this.renderTools();
+    if (z > 1 && P.z0 === 1 && !M.profile.zoomTip) { M.profile.zoomTip = true; saveMeta(); toast('Pinch in — or tap the % button — to go back to page width'); }
+  }
+  async moveImgTo(d, to, shift) {
+    const from = this.slot; if (!to.page) to.page = await loadPage(to.id); if (!to.page) return;
+    from.page.images = from.page.images.filter(i => i !== d.im); d.im.y += shift; this.clampImg(d.im); (to.page.images = to.page.images || []).push(d.im);
+    const cards = this.pruneCards(); this.pushUndo({ type: 'imgxfer', im: d.im, from, to, before: { x: d.ox, y: d.oy, w: d.ow, h: d.oh }, after: { x: d.im.x, y: d.im.y, w: d.im.w, h: d.im.h }, cards });
+    this.save(from); this.redraw(from); await this.activate(to); this.sel = d.im.id; this.save(to); this.redraw(to); this.renderTools();
+  }
+  xfer(a, back) { const [src, dst] = back ? [a.to, a.from] : [a.from, a.to]; src.page.images = src.page.images.filter(i => i !== a.im); Object.assign(a.im, back ? a.before : a.after); dst.page.images.push(a.im); if (a.cards) { if (back) M.cards.push(...a.cards); else M.cards = M.cards.filter(c => !a.cards.includes(c)); } saveMeta(); this.save(src); this.save(dst); this.redraw(src); this.redraw(dst); this.sel = null; this.renderTools(); }
   scrollToSlot(i) { this.scrollBy(this.slotTop(i) - this.scrollY); this.activate(this.slots[i]); }
   pt(e) { const r = this.pageEl.getBoundingClientRect(); return [(e.clientX - r.left) / this.s, (e.clientY - r.top) / this.s, e.pointerType === 'pen' ? (e.pressure || .5) : .5]; }
   imageAt(e) { const el = e.target.closest?.('.page'), sl = el && this.slots.find(s => s.el === el); if (!sl?.page) return null; const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / this.s, y = (e.clientY - r.top) / this.s; return (sl.page.images || []).slice().reverse().find(i => x >= i.x - 20 && x <= i.x + i.w + 20 && y >= i.y - 20 && y <= i.y + i.h + 20) ? sl : null; }
@@ -493,7 +509,8 @@ class Editor {
     const fingerMove = e.pointerType === 'touch' && this.tool === 'move' && !this.touches.size && this.imageAt(e);
     if (e.pointerType === 'touch' && !M.profile.fingerDraw && !fingerMove) { // fingers: scroll + two-finger tap undo
       this.touches.set(e.pointerId, { y: e.clientY, x: e.clientX, t: Date.now(), moved: 0 });
-      if (this.touches.size === 2) this.twoStart = Date.now(); e.preventDefault(); return;
+      if (this.touches.size === 2) { this.twoStart = Date.now(); const [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); this.pinch = { d0: Math.hypot(p1.x - p2.x, p1.y - p2.y), c0: [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top], z0: this.zoom || 1, sx: this.scrollX || 0, sy: this.scrollY, k: 1, c: null, W: this.inner.scrollWidth, H: this.inner.scrollHeight }; }
+      e.preventDefault(); return;
     }
     if (this.paperOpen) { this.paperOpen = false; this.renderTools(); }
     if ((!this.isDrawPointer(e) && !fingerMove) || this.testing) return;
@@ -509,24 +526,33 @@ class Editor {
     if (tool === 'move') { const im = [...(this.page.images || [])].reverse().find(i => p[0] >= i.x && p[0] <= i.x + i.w && p[1] >= i.y && p[1] <= i.y + i.h); this.sel = im?.id || null; if (im) { const resize = p[0] > im.x + im.w - 60 && p[1] > im.y + im.h - 60; this.drag = { im, p, ox: im.x, oy: im.y, ow: im.w, oh: im.h, resize }; } this.renderTools(); this.renderOverlay(); }
   }
   move(e) {
-    if (this.touches.has(e.pointerId)) { const t = this.touches.get(e.pointerId); if (!t) return; const dy = e.clientY - t.y; t.moved += Math.abs(dy) + Math.abs(e.clientX - t.x); t.y = e.clientY; t.x = e.clientX; if (this.touches.size === 1) this.scrollBy(-dy); return; }
+    if (this.touches.has(e.pointerId)) { const t = this.touches.get(e.pointerId); const dy = e.clientY - t.y, dx = e.clientX - t.x; t.moved += Math.abs(dy) + Math.abs(dx); t.y = e.clientY; t.x = e.clientX;
+      if (this.touches.size === 1 && !this.pinch) this.scrollBy(-dy, -dx);
+      else if (this.pinch && this.touches.size === 2) { const P = this.pinch, [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); const k = Math.min(3 / P.z0, Math.max(1 / P.z0, Math.hypot(p1.x - p2.x, p1.y - p2.y) / Math.max(1, P.d0))); P.k = k; P.c = [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top];
+        const ox = P.c0[0] + P.sx, oy = P.c0[1] + P.sy; this.inner.style.transformOrigin = `${ox}px ${oy}px`; this.inner.style.transform = `translate(${-P.sx + P.c[0] - P.c0[0]}px,${-P.sy + P.c[1] - P.c0[1]}px) scale(${k})`; }
+      return; }
     if (e.pointerId !== this.penActive) return; e.preventDefault();
     let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e]; const tool = this.curTool;
     if (this.cur) { for (const ev of evs) this.cur.points.push(this.pt(ev)); this.drawLive(); }
     if (tool === 'eraser') for (const ev of evs) this.eraseAt(this.pt(ev));
     if (tool === 'q' && this.box) { const p = this.pt(e); this.box.x1 = p[0]; this.box.y1 = p[1]; this.renderOverlay(); }
-    if (tool === 'move' && this.drag) { const p = this.pt(e), d = this.drag, dx = p[0] - d.p[0], dy = p[1] - d.p[1]; if (d.resize) { const r = d.oh / d.ow; d.im.w = Math.min(PW - d.im.x, Math.max(60, d.ow + dx)); d.im.h = d.im.w * r; } else { d.im.x = d.ox + dx; d.im.y = d.oy + dy; } this.clampImg(d.im); this.redraw(); }
+    if (tool === 'move' && this.drag) { const p = this.pt(e), d = this.drag, dx = p[0] - d.p[0], dy = p[1] - d.p[1]; if (d.resize) { const r = d.oh / d.ow; d.im.w = Math.min(PW - d.im.x, Math.max(60, d.ow + dx)); d.im.h = d.im.w * r; this.clampImg(d.im); } else { d.im.x = Math.min(Math.max(0, d.ox + dx), PW - d.im.w); d.im.y = d.oy + dy; } this.slot.el.style.zIndex = 5; this.renderOverlay(); if (d.resize) this.redraw(); }
   }
   up(e) {
     if (this.touches.has(e.pointerId)) {
-      const t = this.touches.get(e.pointerId); if (this.twoStart && Date.now() - this.twoStart < 300 && t && t.moved < 20 && this.touches.size === 2) { this.twoStart = 0; this.doUndo(); toast('Undo'); }
-      this.touches.delete(e.pointerId); if (!this.touches.size) this.twoStart = 0; return;
+      const t = this.touches.get(e.pointerId), P = this.pinch;
+      if (this.twoStart && Date.now() - this.twoStart < 300 && t && t.moved < 20 && this.touches.size === 2 && (!P || Math.abs(P.k - 1) < 0.05)) { this.twoStart = 0; this.pinch = null; this.scrollBy(0); this.doUndo(); toast('Undo'); }
+      else if (P && this.touches.size === 2) { this.pinch = null; this.commitZoom(P); }
+      this.touches.delete(e.pointerId); if (!this.touches.size) { this.twoStart = 0; this.pinch = null; } return;
     }
     if (e.pointerId !== this.penActive) return; this.penActive = null; const tool = this.curTool;
-    if (this.cur) { const st = this.cur; this.cur = null; this.live.getContext('2d').clearRect(0, 0, this.live.width, this.live.height); if (st.points.length > 1 || st.tool === 'pen') { if (st.tool === 'pen' && this.scratchOut(st)) { this.redraw(); this.save(); return; } this.page.strokes.push(st); this.pushUndo({ type: 'add', stroke: st }); if (st.tool === 'pen') this.detectMark(st); this.redraw(); this.save(); } }
+    if (this.cur) { const st = this.cur; this.cur = null; this.live.getContext('2d').clearRect(0, 0, this.live.width, this.live.height); if (st.points.length > 1 || st.tool === 'pen') { if (st.tool === 'pen' && this.scratchOut(st)) { this.redraw(); this.save(); return; } this.page.strokes.push(st); this.pushUndo({ type: 'add', stroke: st }); try { if (st.tool === 'pen') this.detectMark(st); else this.markFromHighlighter(st); } catch (err) { console.error(err); } this.redraw(); this.save(); } }
     if (tool === 'eraser' && this.erased?.length) { const cards = this.pruneCards(); this.pushUndo({ type: 'erase', strokes: this.erased, cards }); this.erased = null; this.save(); }
     if (tool === 'q' && this.box) { const b = this.box; this.box = null; const x = Math.min(b.x0, b.x1), y = Math.min(b.y0, b.y1), w = Math.abs(b.x1 - b.x0), h = Math.abs(b.y1 - b.y0); if (w > 20 && h > 14) this.addCard({ x, y, w, h }, 'box'); else this.renderOverlay(); }
-    if (tool === 'move' && this.drag) { const d = this.drag; this.drag = null; if (d.im.x !== d.ox || d.im.y !== d.oy || d.im.w !== d.ow) this.pushUndo({ type: 'imgmove', im: d.im, before: { x: d.ox, y: d.oy, w: d.ow, h: d.oh }, after: { x: d.im.x, y: d.im.y, w: d.im.w, h: d.im.h } }); this.save(); this.renderOverlay(); }
+    if (tool === 'move' && this.drag) { const d = this.drag; this.drag = null; this.slot.el.style.zIndex = '';
+      const i = this.slots.indexOf(this.slot), cy = d.im.y + d.im.h / 2, step = PH + this.gap / this.s;
+      if (!d.resize && (cy > PH || cy < 0)) { const to = this.slots[i + (cy > PH ? 1 : -1)]; if (to) { this.moveImgTo(d, to, cy > PH ? -step : step); return; } }
+      this.clampImg(d.im); if (d.im.x !== d.ox || d.im.y !== d.oy || d.im.w !== d.ow) this.pushUndo({ type: 'imgmove', im: d.im, before: { x: d.ox, y: d.oy, w: d.ow, h: d.oh }, after: { x: d.im.x, y: d.im.y, w: d.im.w, h: d.im.h } }); this.save(); this.redraw(); }
   }
   save(slot = this.slot) {
     const p = slot.page, meta = M.pages.find(x => x.id === p.id); const wasEmpty = meta && meta.n === 0, empty = this.isEmpty(p);
@@ -537,24 +563,24 @@ class Editor {
   eraseAt(p) { const r = 14; const before = this.page.strokes.length; const keep = []; for (const st of this.page.strokes) { if (st.points.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r + st.size / 2)) this.erased.push(st); else keep.push(st); } if (keep.length !== before) { this.page.strokes = keep; this.redraw(); } }
   pushUndo(a) { a.slot = this.slot; this.undo.push(a); if (this.undo.length > 100) this.undo.shift(); this.redo = []; }
   applyOn(a, f) { const prev = this.slot; this.slot = a.slot; this.page = a.slot.page; this.pageId = a.slot.id; f(); saveMeta(); this.save(a.slot); this.redraw(a.slot); this.slot = prev; this.page = prev.page; this.pageId = prev.id; this.renderTools(); }
-  doUndo() { const a = this.undo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes = pg.strokes.filter(s => s !== a.stroke); if (a.card) M.cards = M.cards.filter(c => c.id !== a.card); } if (a.type === 'erase') { pg.strokes.push(...a.strokes); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'card') M.cards = M.cards.filter(c => c.id !== a.card.id); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.added.includes(s)).concat(a.removed); if (a.cards) M.cards.push(...a.cards); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images = pg.images.filter(i => i !== a.im); if (a.type === 'imgdel') { pg.images.push(a.im); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'imgmove') Object.assign(a.im, a.before); }); this.sel = null; this.redo.push(a); }
-  doRedo() { const a = this.redo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes.push(a.stroke); if (a.cardObj) M.cards.push(a.cardObj); } if (a.type === 'erase') { pg.strokes = pg.strokes.filter(s => !a.strokes.includes(s)); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } if (a.type === 'card') M.cards.push(a.card); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.removed.includes(s)).concat(a.added); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images.push(a.im); if (a.type === 'imgdel') { pg.images = pg.images.filter(i => i !== a.im); if (a.cards) M.cards = M.cards.filter(x => !a.cards.includes(x)); } if (a.type === 'imgmove') Object.assign(a.im, a.after); }); this.sel = null; this.undo.push(a); }
+  doUndo() { const a = this.undo.pop(); if (!a) return; if (a.type === 'imgxfer') { this.xfer(a, true); this.redo.push(a); return; } this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes = pg.strokes.filter(s => s !== a.stroke); if (a.card) M.cards = M.cards.filter(c => c.id !== a.card); } if (a.type === 'erase') { pg.strokes.push(...a.strokes); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'card') M.cards = M.cards.filter(c => c.id !== a.card.id); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.added.includes(s)).concat(a.removed); if (a.cards) M.cards.push(...a.cards); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images = pg.images.filter(i => i !== a.im); if (a.type === 'imgdel') { pg.images.push(a.im); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'imgmove') Object.assign(a.im, a.before); }); this.sel = null; this.redo.push(a); }
+  doRedo() { const a = this.redo.pop(); if (!a) return; if (a.type === 'imgxfer') { this.xfer(a, false); this.undo.push(a); return; } this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes.push(a.stroke); if (a.cardObj) M.cards.push(a.cardObj); } if (a.type === 'erase') { pg.strokes = pg.strokes.filter(s => !a.strokes.includes(s)); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } if (a.type === 'card') M.cards.push(a.card); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.removed.includes(s)).concat(a.added); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images.push(a.im); if (a.type === 'imgdel') { pg.images = pg.images.filter(i => i !== a.im); if (a.cards) M.cards = M.cards.filter(x => !a.cards.includes(x)); } if (a.type === 'imgmove') Object.assign(a.im, a.after); }); this.sel = null; this.undo.push(a); }
   // Scratch-out: a deliberate back-and-forth scribble over ink erases it. Ordinary writing never triggers it.
   scratchOut(st) {
     const raw = st.points; if (raw.length < 8) return false; const b = bboxOf(raw); const t = traversals(raw);
     if (!t || t.n < 4 || t.range < 30) return false;
     const R = resample(raw, 4);
     // a scratch-out goes over existing ink; a new letter is written in empty space
-    const nearInk = this.page.strokes.filter(o => { const ob = bboxOf(o.points); return !(ob.x > b.x + b.w + 8 || ob.x + ob.w < b.x - 8 || ob.y > b.y + b.h + 8 || ob.y + ob.h < b.y - 8); }).flatMap(o => resample(o.points, 4));
+    const nearInk = this.page.strokes.filter(o => o.tool === 'pen').filter(o => { const ob = bboxOf(o.points); return !(ob.x > b.x + b.w + 8 || ob.x + ob.w < b.x - 8 || ob.y > b.y + b.h + 8 || ob.y + ob.h < b.y - 8); }).flatMap(o => resample(o.points, 4));
     const over = R.filter(r => nearInk.some(q => Math.abs(q[0] - r[0]) < 9 && Math.abs(q[1] - r[1]) < 9)).length;
     if (over < 0.15 * R.length) return false;
-    const cover = q => q[0] >= b.x - 4 && q[0] <= b.x + b.w + 4 && q[1] >= b.y - 4 && q[1] <= b.y + b.h + 4 && R.some(r => Math.abs(r[0] - q[0]) < 14 && Math.abs(r[1] - q[1]) < 14);
+    const cover = q => q[0] >= b.x - 4 && q[0] <= b.x + b.w + 4 && q[1] >= b.y - 4 && q[1] <= b.y + b.h + 4 && R.some(r => Math.abs(r[0] - q[0]) < 18 && Math.abs(r[1] - q[1]) < 18);
     const removed = [], added = []; let hits = 0;
     for (const o of this.page.strokes) {
       const ob = bboxOf(o.points); if (ob.x > b.x + b.w + 4 || ob.x + ob.w < b.x - 4 || ob.y > b.y + b.h + 4 || ob.y + ob.h < b.y - 4) continue;
       const cov = o.points.map(cover), n = cov.filter(Boolean).length; if (!n) continue; hits += n;
       const runs = []; let cur = []; o.points.forEach((q, i) => { if (cov[i]) { if (cur.length) runs.push(cur); cur = []; } else cur.push(q); }); if (cur.length) runs.push(cur);
-      const keep = runs.filter(r => r.length >= 2 && pathLen(r) > 6).sort((x, y) => y.length - x.length);
+      const keep = runs.filter(r => r.length >= 2 && pathLen(r) > 16).sort((x, y) => y.length - x.length);
       removed.push(o); keep.forEach((r, i) => added.push({ ...o, id: i === 0 ? o.id : uid(), points: r }));
     }
     if (hits < 4) return false;
@@ -569,13 +595,33 @@ class Editor {
     if (gone.length) { M.cards = M.cards.filter(c => !gone.includes(c)); saveMeta(); this.renderTools(); this.renderOverlay(); }
     return gone;
   }
+  inkRect(list) { return list.reduce((q, o) => { const b = o.b || bboxOf(o.points); return { x: Math.min(q.x, b.x), y: Math.min(q.y, b.y), x1: Math.max(q.x1, b.x + b.w), y1: Math.max(q.y1, b.y + b.h) }; }, { x: 1e9, y: 1e9, x1: -1e9, y1: -1e9 }); }
+  // MARKER: whatever it touches, surrounds, or sits right under becomes a question. No precision needed.
+  markFromHighlighter(st) {
+    const pts = st.points, b = bboxOf(pts), rad = st.size / 2 + 10, R = resample(pts, 5), imgs = this.page.images || [];
+    const ink = this.page.strokes.filter(o => o !== st && o.tool === 'pen').map(o => ({ o, b: bboxOf(o.points) }));
+    let pick = [];
+    const a = pts[0], z = pts[pts.length - 1], mx = Math.max(b.w, b.h);
+    if (mx > 40 && Math.hypot(z[0] - a[0], z[1] - a[1]) < 0.5 * mx && pathLen(simplify(pts)) > 1.8 * mx) { const poly = simplify(pts, 4); pick = ink.filter(i => { const qs = simplify(i.o.points, 4); return qs.filter(q => inPoly(q, poly)).length >= 0.5 * qs.length; }); }
+    const touched = ink.filter(i => !(i.b.x > b.x + b.w + rad || i.b.x + i.b.w < b.x - rad || i.b.y > b.y + b.h + rad || i.b.y + i.b.h < b.y - rad) && resample(i.o.points, 4).some(q => R.some(r => Math.abs(r[0] - q[0]) < rad && Math.abs(r[1] - q[1]) < rad)));
+    pick = [...new Set([...pick, ...touched])];
+    if (!pick.length) { // a marker line just under the writing
+      const above = ink.filter(i => { const ov = Math.min(i.b.x + i.b.w, b.x + b.w) - Math.max(i.b.x, b.x), gap = b.y - (i.b.y + i.b.h); return ov > 0.3 * Math.min(Math.max(i.b.w, 4), b.w) && gap >= -10 && gap <= 80; });
+      if (above.length) { const near = Math.min(...above.map(i => Math.max(0, b.y - (i.b.y + i.b.h)))); pick = above.filter(i => Math.max(0, b.y - (i.b.y + i.b.h)) <= near + 30); }
+    }
+    let rect = null;
+    if (pick.length) { const u = this.inkRect(pick); rect = { x: u.x, y: u.y, w: u.x1 - u.x, h: u.y1 - u.y }; }
+    else { const im = imgs.find(i => Math.min(i.x + i.w, b.x + b.w) - Math.max(i.x, b.x) > 0 && Math.min(i.y + i.h, b.y + b.h) - Math.max(i.y, b.y) > 0); if (im) { const x = Math.max(im.x, b.x - 6), y = Math.max(im.y, b.y - (b.h < 40 ? 40 : 6)), x1 = Math.min(im.x + im.w, b.x + b.w + 6), y1 = Math.min(im.y + im.h, b.y + b.h + 6); rect = { x, y, w: x1 - x, h: y1 - y }; } }
+    if (!rect || rect.w < 6 || rect.h < 6) return;
+    if (!this.overlapsCard(rect)) this.addCard(rect, 'mark', st);
+  }
   detectMark(st) {
     const pr = M.profile, pts = st.points; if (pts.length < 4) return; const b = bboxOf(pts), len = pathLen(simplify(pts));
     const others = this.page.strokes.filter(x => x !== st && x.tool === 'pen').map(x => ({ x, b: bboxOf(x.points) })), imgs = this.page.images || [];
     const a = pts[0], z = pts[pts.length - 1], chord = Math.hypot(z[0] - a[0], z[1] - a[1]);
     const ang = Math.abs(Math.atan2(z[1] - a[1], z[0] - a[0]) * 180 / Math.PI), flat = Math.min(ang, 180 - ang);
     // UNDERLINE: a long, roughly straight line. Writing (or a picture) up to ~2 grid squares above it becomes the question.
-    if (pr.underlineQuiz && chord >= 0.75 * len && b.w >= 45 && flat <= 20 && b.h <= Math.max(30, 0.25 * b.w)) {
+    if (pr.penMarks !== false && chord >= 0.6 * len && b.w >= 45 && flat <= 25 && b.h <= Math.max(40, 0.35 * b.w)) {
       const [L, Rt] = a[0] < z[0] ? [a, z] : [z, a]; const yAt = x => L[1] + (Rt[1] - L[1]) * ((Math.min(Math.max(x, L[0]), Rt[0]) - L[0]) / Math.max(1, Rt[0] - L[0]));
       const REACH = 80; // page units ≈ 2 grid squares / 2 ruled lines
       const gp = o => yAt(o.b.x + o.b.w / 2) - (o.b.y + o.b.h);
@@ -595,9 +641,9 @@ class Editor {
     }
     // CIRCLE: a loop that comes back near its start, around writing or over a picture
     const gap = Math.hypot(z[0] - a[0], z[1] - a[1]), mx = Math.max(b.w, b.h);
-    if (pr.circleQuiz && b.w >= 36 && b.h >= 22 && gap < 0.35 * mx && len > 1.8 * mx && len < 5 * mx) {
+    if (pr.penMarks !== false && b.w >= 50 && b.h >= 26 && gap < 0.5 * mx && len > 1.6 * mx && len < 5.5 * mx) {
       const poly = simplify(pts, 4);
-      const inside = others.filter(o => { const qs = simplify(o.x.points, 4); return qs.filter(q => inPoly(q, poly)).length >= 0.6 * qs.length; });
+      const inside = others.filter(o => { const qs = simplify(o.x.points, 4); return qs.filter(q => inPoly(q, poly)).length >= 0.5 * qs.length; });
       const onImg = imgs.some(i => { const ix = Math.min(i.x + i.w, b.x + b.w) - Math.max(i.x, b.x), iy = Math.min(i.y + i.h, b.y + b.h) - Math.max(i.y, b.y); return ix > 0 && iy > 0 && ix * iy >= 0.6 * b.w * b.h; });
       if (inside.length || onImg) { const rect = { x: b.x + 4, y: b.y + 4, w: b.w - 8, h: b.h - 8 }; if (!this.overlapsCard(rect)) this.addCard(rect, 'circle', st); }
     }
@@ -607,7 +653,7 @@ class Editor {
     const c = { id: uid(), pageId: this.pageId, notebookId: this.page.notebookId, ...rect, kind, due: startOfDay(), interval: 0, reps: 0, lapses: 0, createdAt: Date.now() };
     if (stroke) c.markId = stroke.id; M.cards.push(c); saveMeta();
     if (stroke) { const a = this.undo[this.undo.length - 1]; if (a && a.stroke === stroke) { a.card = c.id; a.cardObj = c; } } else this.pushUndo({ type: 'card', card: c });
-    this.renderTools(); this.renderOverlay(); toast(kind === 'line' ? 'Underlined line added to your quiz' : kind === 'circle' ? 'Circled part added to your quiz' : 'Added to your quiz');
+    this.renderTools(); this.renderOverlay(); toast('Added to your quiz — tap Q to take it out');
   }
   async addImage(file) {
     if (!file) return; const url = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
@@ -627,6 +673,7 @@ class Editor {
     if (d.tm !== undefined) { const c = M.cards.find(x => x.id === this.asking); if (c) schedule(c, +d.tm); this.asking = null; return this.renderAllOverlays(); }
     const a = d.ed, idx = this.slots.indexOf(this.slot);
     if (a === 'back') { for (const s of this.slots) if (s.page) savePageNow(s.page); return go('notebook', { nbId: this.nbId }); }
+    if (a === 'fit') { this.zoom = 1; this.layout(); return this.renderTools(); }
     if (a === 'size') { this.size = { s: 'm', m: 'l', l: 's' }[this.size]; return this.renderTools(); }
     if (a === 'paper') { this.paperOpen = !this.paperOpen; return this.renderTools(); }
     if (a === 'undo') return this.doUndo(); if (a === 'redo') return this.doRedo();
@@ -652,7 +699,7 @@ mountSheet.newnb = () => {
   const paint = () => { $$('[data-pick-color]').forEach(b => b.classList.toggle('on', b.dataset.pickColor === st.color)); $$('[data-pick-paper]').forEach(b => b.classList.toggle('on', b.dataset.pickPaper === st.paper)); };
   name.addEventListener('input', () => { if (!st.touched) { st.paper = suggestPaper(name.value); paint(); $('#nb-hint').textContent = st.paper === 'grid' ? `Grid suggested for ${name.value} — switch any time.` : 'You can switch any time in the toolbar.'; } });
   $('.sheet').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.pickColor) { st.color = b.dataset.pickColor; paint(); } if (b.dataset.pickPaper) { st.paper = b.dataset.pickPaper; st.touched = true; paint(); }
-    if (b.dataset.createNb !== undefined) { const n = name.value.trim(); if (!n) { name.focus(); return; } const nb = { id: uid(), name: n, color: st.color, paper: st.paper, createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); saveMeta(); ui.sheet = null; toast(`${n} created`); go('notebook', { nbId: nb.id }); } });
+    if (b.dataset.createNb !== undefined) { const n = name.value.trim(); if (!n) { name.focus(); return; } const nb = { id: uid(), name: n, color: st.color, paper: st.paper, createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); saveMeta(); ui.sheet = null; ui.paperTip = `${nb.paper[0].toUpperCase() + nb.paper.slice(1)} paper — switch it any time in the toolbar`; go('editor', { pageId: newPage(nb.id), nbId: nb.id }); } });
 };
 SHEETS.addclass = () => {
   const f = ui.form, c = ui.editClass ? M.classes.find(x => x.id === ui.editClass) : null, off = ui.weekOff || 0;
@@ -735,7 +782,7 @@ document.addEventListener('click', async e => {
   if (d.daily) { M.profile.daily = +d.daily; saveMeta(); return render(); }
   if (d.go) return go(d.go);
   if (d.sheet) { ui.sheet = d.sheet; return renderSheet(); }
-  if (d.openNb) return go('notebook', { nbId: d.openNb });
+  if (d.openNb) { if (!writtenPagesOf(d.openNb).length) { const nb = nbById(d.openNb), ps = pagesOf(d.openNb), tail = ps[ps.length - 1]; ui.paperTip = `${nb.paper[0].toUpperCase() + nb.paper.slice(1)} paper — switch it any time in the toolbar`; return go('editor', { pageId: tail && tail.n === 0 ? tail.id : newPage(d.openNb), nbId: d.openNb }); } return go('notebook', { nbId: d.openNb }); }
   if (d.openToday) return go('editor', { pageId: writingPage(d.openToday), nbId: d.openToday });
   if (d.newPage) { const ps = pagesOf(d.newPage), tail = ps[ps.length - 1]; return go('editor', { pageId: tail && tail.n === 0 ? tail.id : newPage(d.newPage), nbId: d.newPage }); }
   if (d.openPage) return go('editor', { pageId: d.openPage });
