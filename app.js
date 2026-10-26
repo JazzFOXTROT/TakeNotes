@@ -362,7 +362,19 @@ function resample(pts, step) { const out = [[pts[0][0], pts[0][1]]]; let acc = 0
 function cuspCount(pts) { const r = resample(pts, 5), k = 2; let n = 0, last = -10; for (let i = k; i < r.length - k; i++) { const ax = r[i][0] - r[i - k][0], ay = r[i][1] - r[i - k][1], bx = r[i + k][0] - r[i][0], by = r[i + k][1] - r[i][1]; const m = Math.hypot(ax, ay) * Math.hypot(bx, by); if (m && (ax * bx + ay * by) / m < -0.5 && i - last > 3) { n++; last = i; } } return n; }
 function legLengths(pts) { const r = resample(pts, 5), k = 2, cut = [0]; let last = -10; for (let i = k; i < r.length - k; i++) { const ax = r[i][0] - r[i - k][0], ay = r[i][1] - r[i - k][1], bx = r[i + k][0] - r[i][0], by = r[i + k][1] - r[i][1]; const m = Math.hypot(ax, ay) * Math.hypot(bx, by); if (m && (ax * bx + ay * by) / m < -0.6 && i - last > 3) { cut.push(i); last = i; } } cut.push(r.length - 1); const out = []; for (let i = 1; i < cut.length; i++) out.push((cut[i] - cut[i - 1]) * 5); return out; }
 function near(a, b, d) { const ra = resample(a, 6), rb = resample(b, 6); for (const p of ra) for (const q of rb) if (Math.abs(p[0] - q[0]) < d && Math.abs(p[1] - q[1]) < d) return true; return false; }
-const simplify = (pts, d = 8) => { const o = [pts[0]]; for (const q of pts) { const l = o[o.length - 1]; if (Math.hypot(q[0] - l[0], q[1] - l[1]) >= d) o.push(q); } if (o[o.length - 1] !== pts[pts.length - 1]) o.push(pts[pts.length - 1]); return o; };
+const simplify = (pts, d = 8) => { if (!pts || pts.length < 2) return pts || []; const o = [pts[0]]; for (const q of pts) { const l = o[o.length - 1]; if (Math.hypot(q[0] - l[0], q[1] - l[1]) >= d) o.push(q); } if (o[o.length - 1] !== pts[pts.length - 1]) o.push(pts[pts.length - 1]); return o; };
+function traversals(pts) { // how many times the stroke sweeps back and forth along its main direction
+  const q = simplify(pts, 6); if (q.length < 4) return 0; let mx = 0, my = 0; q.forEach(p => { mx += p[0]; my += p[1]; }); mx /= q.length; my /= q.length;
+  let sxx = 0, syy = 0, sxy = 0; q.forEach(p => { const dx = p[0] - mx, dy = p[1] - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; });
+  const th0 = 0.5 * Math.atan2(2 * sxy, sxx - syy); let best = { n: 0, range: 0 };
+  for (const th of [th0, th0 + Math.PI / 2, 0, Math.PI / 2]) { // main axis, cross axis, horizontal, vertical
+    const c = Math.cos(th), sn = Math.sin(th), pr = q.map(p => p[0] * c + p[1] * sn); const range = Math.max(...pr) - Math.min(...pr), thr = 0.4 * range; if (range < 1) continue;
+    let dir = 0, ext = pr[0], n = 0; for (const v of pr) { if (dir === 0) { if (Math.abs(v - ext) > thr) { dir = Math.sign(v - ext); ext = v; n = 1; } } else if (dir > 0) { if (v > ext) ext = v; else if (ext - v > thr) { dir = -1; ext = v; n++; } } else { if (v < ext) ext = v; else if (v - ext > thr) { dir = 1; ext = v; n++; } } }
+    if (n > best.n || (n === best.n && range > best.range)) best = { n, range };
+  }
+  return best;
+}
+function inPoly(pt, poly) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c; } return c; }
 const pathLen = pts => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return l; };
 
 /* ---------- editor ---------- */
@@ -448,7 +460,7 @@ class Editor {
     this.scrollY = 0; this.scrollBy(keep * (this.h + this.gap)); this.updateVisible();
   }
   async prepare(s) {
-    s.ready = true; if (!s.page) s.page = await loadPage(s.id); if (!s.page) return; const meta = M.pages.find(x => x.id === s.id); if (meta && meta.n === undefined) { meta.n = s.page.strokes.length + (s.page.images || []).length; saveMeta(); }
+    s.ready = true; if (!s.page) s.page = await loadPage(s.id); if (!s.page) return; (s.page.images || []).forEach(im => this.clampImg(im)); const meta = M.pages.find(x => x.id === s.id); if (meta && meta.n === undefined) { meta.n = s.page.strokes.length + (s.page.images || []).length; saveMeta(); }
     for (const c of [s.base, s.live]) { c.width = Math.round(this.w * this.dpr); c.height = Math.round(this.h * this.dpr); }
     await this.redraw(s);
   }
@@ -473,15 +485,18 @@ class Editor {
   scrollBy(dy) { const max = Math.max(0, this.inner.scrollHeight - this.scroller.clientHeight); this.scrollY = Math.min(max, Math.max(0, this.scrollY + dy)); this.inner.style.transform = `translateY(${-this.scrollY}px)`; if (dy) this.updateVisible(); }
   scrollToSlot(i) { this.scrollBy(this.slotTop(i) - this.scrollY); this.activate(this.slots[i]); }
   pt(e) { const r = this.pageEl.getBoundingClientRect(); return [(e.clientX - r.left) / this.s, (e.clientY - r.top) / this.s, e.pointerType === 'pen' ? (e.pressure || .5) : .5]; }
+  imageAt(e) { const el = e.target.closest?.('.page'), sl = el && this.slots.find(s => s.el === el); if (!sl?.page) return null; const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / this.s, y = (e.clientY - r.top) / this.s; return (sl.page.images || []).slice().reverse().find(i => x >= i.x - 20 && x <= i.x + i.w + 20 && y >= i.y - 20 && y <= i.y + i.h + 20) ? sl : null; }
+  clampImg(im) { if (im.w > PW) { const k = PW / im.w; im.w *= k; im.h *= k; } if (im.h > PH) { const k = PH / im.h; im.w *= k; im.h *= k; } im.x = Math.min(Math.max(0, im.x), PW - im.w); im.y = Math.min(Math.max(0, im.y), PH - im.h); }
   isDrawPointer(e) { return e.pointerType === 'pen' || e.pointerType === 'mouse' || (e.pointerType === 'touch' && M.profile.fingerDraw); }
   async down(e) {
     if (e.target.closest('button,.ask')) return;
-    if (e.pointerType === 'touch' && !M.profile.fingerDraw) { // fingers: scroll + two-finger tap undo
+    const fingerMove = e.pointerType === 'touch' && this.tool === 'move' && !this.touches.size && this.imageAt(e);
+    if (e.pointerType === 'touch' && !M.profile.fingerDraw && !fingerMove) { // fingers: scroll + two-finger tap undo
       this.touches.set(e.pointerId, { y: e.clientY, x: e.clientX, t: Date.now(), moved: 0 });
       if (this.touches.size === 2) this.twoStart = Date.now(); e.preventDefault(); return;
     }
     if (this.paperOpen) { this.paperOpen = false; this.renderTools(); }
-    if (!this.isDrawPointer(e) || this.testing) return;
+    if ((!this.isDrawPointer(e) && !fingerMove) || this.testing) return;
     if (this.penActive && this.penActive !== e.pointerId) return;
     const el = e.target.closest('.page'); if (!el) return; const slot = this.slots.find(s => s.el === el); if (!slot?.page) return;
     if (slot !== this.slot) { this.slot = slot; this.page = slot.page; this.pageId = slot.id; this.pageEl = slot.el; this.base = slot.base; this.live = slot.live; this.over = slot.over; ui.pageId = slot.id; this.sel = null; this.renderTools(); }
@@ -491,19 +506,19 @@ class Editor {
     if (tool === 'pen' || tool === 'hl') { const size = tool === 'hl' ? { s: 18, m: 26, l: 36 }[this.size] : { s: 2.2, m: 3.2, l: 5 }[this.size]; this.cur = { id: uid(), tool, color: tool === 'hl' ? '#F0DF96' : this.color, size, points: [p] }; }
     if (tool === 'eraser') { this.erased = []; this.eraseAt(p); }
     if (tool === 'q') this.box = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
-    if (tool === 'move') { const im = [...(this.page.images || [])].reverse().find(i => p[0] >= i.x && p[0] <= i.x + i.w && p[1] >= i.y && p[1] <= i.y + i.h); this.sel = im?.id || null; if (im) { const resize = p[0] > im.x + im.w - 40 && p[1] > im.y + im.h - 40; this.drag = { im, p, ox: im.x, oy: im.y, ow: im.w, oh: im.h, resize }; } this.renderTools(); this.renderOverlay(); }
+    if (tool === 'move') { const im = [...(this.page.images || [])].reverse().find(i => p[0] >= i.x && p[0] <= i.x + i.w && p[1] >= i.y && p[1] <= i.y + i.h); this.sel = im?.id || null; if (im) { const resize = p[0] > im.x + im.w - 60 && p[1] > im.y + im.h - 60; this.drag = { im, p, ox: im.x, oy: im.y, ow: im.w, oh: im.h, resize }; } this.renderTools(); this.renderOverlay(); }
   }
   move(e) {
-    if (e.pointerType === 'touch' && !M.profile.fingerDraw) { const t = this.touches.get(e.pointerId); if (!t) return; const dy = e.clientY - t.y; t.moved += Math.abs(dy) + Math.abs(e.clientX - t.x); t.y = e.clientY; t.x = e.clientX; if (this.touches.size === 1) this.scrollBy(-dy); return; }
+    if (this.touches.has(e.pointerId)) { const t = this.touches.get(e.pointerId); if (!t) return; const dy = e.clientY - t.y; t.moved += Math.abs(dy) + Math.abs(e.clientX - t.x); t.y = e.clientY; t.x = e.clientX; if (this.touches.size === 1) this.scrollBy(-dy); return; }
     if (e.pointerId !== this.penActive) return; e.preventDefault();
     let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e]; const tool = this.curTool;
     if (this.cur) { for (const ev of evs) this.cur.points.push(this.pt(ev)); this.drawLive(); }
     if (tool === 'eraser') for (const ev of evs) this.eraseAt(this.pt(ev));
     if (tool === 'q' && this.box) { const p = this.pt(e); this.box.x1 = p[0]; this.box.y1 = p[1]; this.renderOverlay(); }
-    if (tool === 'move' && this.drag) { const p = this.pt(e), d = this.drag, dx = p[0] - d.p[0], dy = p[1] - d.p[1]; if (d.resize) { const r = d.oh / d.ow; d.im.w = Math.max(60, d.ow + dx); d.im.h = d.im.w * r; } else { d.im.x = d.ox + dx; d.im.y = d.oy + dy; } this.redraw(); }
+    if (tool === 'move' && this.drag) { const p = this.pt(e), d = this.drag, dx = p[0] - d.p[0], dy = p[1] - d.p[1]; if (d.resize) { const r = d.oh / d.ow; d.im.w = Math.min(PW - d.im.x, Math.max(60, d.ow + dx)); d.im.h = d.im.w * r; } else { d.im.x = d.ox + dx; d.im.y = d.oy + dy; } this.clampImg(d.im); this.redraw(); }
   }
   up(e) {
-    if (e.pointerType === 'touch' && !M.profile.fingerDraw) {
+    if (this.touches.has(e.pointerId)) {
       const t = this.touches.get(e.pointerId); if (this.twoStart && Date.now() - this.twoStart < 300 && t && t.moved < 20 && this.touches.size === 2) { this.twoStart = 0; this.doUndo(); toast('Undo'); }
       this.touches.delete(e.pointerId); if (!this.touches.size) this.twoStart = 0; return;
     }
@@ -511,7 +526,7 @@ class Editor {
     if (this.cur) { const st = this.cur; this.cur = null; this.live.getContext('2d').clearRect(0, 0, this.live.width, this.live.height); if (st.points.length > 1 || st.tool === 'pen') { if (st.tool === 'pen' && this.scratchOut(st)) { this.redraw(); this.save(); return; } this.page.strokes.push(st); this.pushUndo({ type: 'add', stroke: st }); if (st.tool === 'pen') this.detectMark(st); this.redraw(); this.save(); } }
     if (tool === 'eraser' && this.erased?.length) { const cards = this.pruneCards(); this.pushUndo({ type: 'erase', strokes: this.erased, cards }); this.erased = null; this.save(); }
     if (tool === 'q' && this.box) { const b = this.box; this.box = null; const x = Math.min(b.x0, b.x1), y = Math.min(b.y0, b.y1), w = Math.abs(b.x1 - b.x0), h = Math.abs(b.y1 - b.y0); if (w > 20 && h > 14) this.addCard({ x, y, w, h }, 'box'); else this.renderOverlay(); }
-    if (tool === 'move' && this.drag) { this.drag = null; this.save(); this.renderOverlay(); }
+    if (tool === 'move' && this.drag) { const d = this.drag; this.drag = null; if (d.im.x !== d.ox || d.im.y !== d.oy || d.im.w !== d.ow) this.pushUndo({ type: 'imgmove', im: d.im, before: { x: d.ox, y: d.oy, w: d.ow, h: d.oh }, after: { x: d.im.x, y: d.im.y, w: d.im.w, h: d.im.h } }); this.save(); this.renderOverlay(); }
   }
   save(slot = this.slot) {
     const p = slot.page, meta = M.pages.find(x => x.id === p.id); const wasEmpty = meta && meta.n === 0, empty = this.isEmpty(p);
@@ -522,61 +537,69 @@ class Editor {
   eraseAt(p) { const r = 14; const before = this.page.strokes.length; const keep = []; for (const st of this.page.strokes) { if (st.points.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r + st.size / 2)) this.erased.push(st); else keep.push(st); } if (keep.length !== before) { this.page.strokes = keep; this.redraw(); } }
   pushUndo(a) { a.slot = this.slot; this.undo.push(a); if (this.undo.length > 100) this.undo.shift(); this.redo = []; }
   applyOn(a, f) { const prev = this.slot; this.slot = a.slot; this.page = a.slot.page; this.pageId = a.slot.id; f(); saveMeta(); this.save(a.slot); this.redraw(a.slot); this.slot = prev; this.page = prev.page; this.pageId = prev.id; this.renderTools(); }
-  doUndo() { const a = this.undo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes = pg.strokes.filter(s => s !== a.stroke); if (a.card) M.cards = M.cards.filter(c => c.id !== a.card); } if (a.type === 'erase') { pg.strokes.push(...a.strokes); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'card') M.cards = M.cards.filter(c => c.id !== a.card.id); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.added.includes(s)).concat(a.removed); if (a.cards) M.cards.push(...a.cards); } }); this.redo.push(a); }
-  doRedo() { const a = this.redo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes.push(a.stroke); if (a.cardObj) M.cards.push(a.cardObj); } if (a.type === 'erase') { pg.strokes = pg.strokes.filter(s => !a.strokes.includes(s)); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } if (a.type === 'card') M.cards.push(a.card); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.removed.includes(s)).concat(a.added); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } }); this.undo.push(a); }
+  doUndo() { const a = this.undo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes = pg.strokes.filter(s => s !== a.stroke); if (a.card) M.cards = M.cards.filter(c => c.id !== a.card); } if (a.type === 'erase') { pg.strokes.push(...a.strokes); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'card') M.cards = M.cards.filter(c => c.id !== a.card.id); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.added.includes(s)).concat(a.removed); if (a.cards) M.cards.push(...a.cards); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images = pg.images.filter(i => i !== a.im); if (a.type === 'imgdel') { pg.images.push(a.im); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'imgmove') Object.assign(a.im, a.before); }); this.sel = null; this.redo.push(a); }
+  doRedo() { const a = this.redo.pop(); if (!a) return; this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes.push(a.stroke); if (a.cardObj) M.cards.push(a.cardObj); } if (a.type === 'erase') { pg.strokes = pg.strokes.filter(s => !a.strokes.includes(s)); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } if (a.type === 'card') M.cards.push(a.card); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.removed.includes(s)).concat(a.added); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images.push(a.im); if (a.type === 'imgdel') { pg.images = pg.images.filter(i => i !== a.im); if (a.cards) M.cards = M.cards.filter(x => !a.cards.includes(x)); } if (a.type === 'imgmove') Object.assign(a.im, a.after); }); this.sel = null; this.undo.push(a); }
   // Scratch-out: a deliberate back-and-forth scribble over ink erases it. Ordinary writing never triggers it.
   scratchOut(st) {
-    const raw = st.points; if (raw.length < 8) return false; const pts = simplify(raw, 3), b = bboxOf(raw); if (b.w < 30) return false;
-    const legs = legLengths(pts); if (legs.length < 3) return false;
-    const span = Math.max(b.w, b.h), long = legs.filter(l => l >= Math.max(28, 0.5 * span)).length;
-    if (long < 3 || long / legs.length < 0.65) return false;
-    const R = resample(raw, 4), near12 = q => q[0] >= b.x - 4 && q[0] <= b.x + b.w + 4 && q[1] >= b.y - 4 && q[1] <= b.y + b.h + 4 && R.some(r => Math.abs(r[0] - q[0]) < 12 && Math.abs(r[1] - q[1]) < 12);
+    const raw = st.points; if (raw.length < 8) return false; const b = bboxOf(raw); const t = traversals(raw);
+    if (!t || t.n < 4 || t.range < 30) return false;
+    const R = resample(raw, 4);
+    // a scratch-out goes over existing ink; a new letter is written in empty space
+    const nearInk = this.page.strokes.filter(o => { const ob = bboxOf(o.points); return !(ob.x > b.x + b.w + 8 || ob.x + ob.w < b.x - 8 || ob.y > b.y + b.h + 8 || ob.y + ob.h < b.y - 8); }).flatMap(o => resample(o.points, 4));
+    const over = R.filter(r => nearInk.some(q => Math.abs(q[0] - r[0]) < 9 && Math.abs(q[1] - r[1]) < 9)).length;
+    if (over < 0.15 * R.length) return false;
+    const cover = q => q[0] >= b.x - 4 && q[0] <= b.x + b.w + 4 && q[1] >= b.y - 4 && q[1] <= b.y + b.h + 4 && R.some(r => Math.abs(r[0] - q[0]) < 14 && Math.abs(r[1] - q[1]) < 14);
     const removed = [], added = []; let hits = 0;
     for (const o of this.page.strokes) {
       const ob = bboxOf(o.points); if (ob.x > b.x + b.w + 4 || ob.x + ob.w < b.x - 4 || ob.y > b.y + b.h + 4 || ob.y + ob.h < b.y - 4) continue;
-      const cov = o.points.map(near12), n = cov.filter(Boolean).length; if (!n) continue; hits += n;
+      const cov = o.points.map(cover), n = cov.filter(Boolean).length; if (!n) continue; hits += n;
       const runs = []; let cur = []; o.points.forEach((q, i) => { if (cov[i]) { if (cur.length) runs.push(cur); cur = []; } else cur.push(q); }); if (cur.length) runs.push(cur);
-      const keep = runs.filter(r => r.length >= 2 && pathLen(r) > 4).sort((x, y) => y.length - x.length);
+      const keep = runs.filter(r => r.length >= 2 && pathLen(r) > 6).sort((x, y) => y.length - x.length);
       removed.push(o); keep.forEach((r, i) => added.push({ ...o, id: i === 0 ? o.id : uid(), points: r }));
     }
-    if (hits < 5) return false;
+    if (hits < 4) return false;
     this.page.strokes = this.page.strokes.filter(x => !removed.includes(x)).concat(added);
     const cards = this.pruneCards(); this.pushUndo({ type: 'replace', removed, added, cards }); this.renderOverlay();
     return true;
   }
   pruneCards() {
     const ids = new Set(this.page.strokes.map(x => x.id)); const boxes = this.page.strokes.map(x => ({ id: x.id, ...bboxOf(x.points) }));
-    const hasInk = c => boxes.some(b => b.id !== c.markId && b.x < c.x + c.w && b.x + b.w > c.x && b.y < c.y + c.h && b.y + b.h > c.y) || (this.page.images || []).some(i => i.x < c.x + c.w && i.x + i.w > c.x && i.y < c.y + c.h && i.y + i.h > c.y);
+    const hasInk = c => c.kind === 'box' || boxes.some(b => b.id !== c.markId && b.x < c.x + c.w && b.x + b.w > c.x && b.y < c.y + c.h && b.y + b.h > c.y) || (this.page.images || []).some(i => i.x < c.x + c.w && i.x + i.w > c.x && i.y < c.y + c.h && i.y + i.h > c.y);
     const gone = cardsOfPage(this.pageId).filter(c => (c.markId && !ids.has(c.markId)) || !hasInk(c));
     if (gone.length) { M.cards = M.cards.filter(c => !gone.includes(c)); saveMeta(); this.renderTools(); this.renderOverlay(); }
     return gone;
   }
   detectMark(st) {
     const pr = M.profile, pts = st.points; if (pts.length < 4) return; const b = bboxOf(pts), len = pathLen(simplify(pts));
-    const others = this.page.strokes.filter(x => x !== st && x.tool === 'pen').map(x => ({ x, b: bboxOf(x.points) }));
+    const others = this.page.strokes.filter(x => x !== st && x.tool === 'pen').map(x => ({ x, b: bboxOf(x.points) })), imgs = this.page.images || [];
     const a = pts[0], z = pts[pts.length - 1], chord = Math.hypot(z[0] - a[0], z[1] - a[1]);
     const ang = Math.abs(Math.atan2(z[1] - a[1], z[0] - a[0]) * 180 / Math.PI), flat = Math.min(ang, 180 - ang);
-    // underline: a long, roughly straight (a bit wavy or sloped is fine) line with writing above it
-    if (pr.underlineQuiz && chord >= 0.75 * len && b.w >= 50 && flat <= 20 && b.h <= Math.max(30, 0.25 * b.w)) {
+    // UNDERLINE: a long, roughly straight line. Writing (or a picture) up to ~2 grid squares above it becomes the question.
+    if (pr.underlineQuiz && chord >= 0.75 * len && b.w >= 45 && flat <= 20 && b.h <= Math.max(30, 0.25 * b.w)) {
       const [L, Rt] = a[0] < z[0] ? [a, z] : [z, a]; const yAt = x => L[1] + (Rt[1] - L[1]) * ((Math.min(Math.max(x, L[0]), Rt[0]) - L[0]) / Math.max(1, Rt[0] - L[0]));
-      const hs = others.map(o => o.b.h).sort((p, q) => p - q), lineH = hs.length ? Math.max(20, hs[Math.floor(hs.length / 2)]) : 30;
-      const above = others.filter(o => { const ov = Math.min(o.b.x + o.b.w, Rt[0] + 15) - Math.max(o.b.x, L[0] - 15); const cx = o.b.x + o.b.w / 2, cy = o.b.y + o.b.h / 2, ly = yAt(cx), gap = ly - (o.b.y + o.b.h); return Math.max(o.b.w, o.b.h) >= 8 && ov > Math.min(Math.max(o.b.w, 4), 40) * 0.5 && cy < ly && gap >= -0.7 * o.b.h && gap <= Math.max(25, 1.3 * lineH) && o.b.h < 160; });
-      // keep only the line of writing closest to the underline
-      const gp = o => Math.max(0, yAt(o.b.x + o.b.w / 2) - (o.b.y + o.b.h)); const nearest = above.length ? Math.min(...above.map(gp)) : 0;
-      const row = above.filter(o => gp(o) <= nearest + lineH * 0.8);
-      const rx0 = Math.min(...row.map(o => o.b.x)), rx1 = Math.max(...row.map(o => o.b.x + o.b.w)), lineLen = Rt[0] - L[0];
-      if (row.length && Math.min(rx1, Rt[0]) - Math.max(rx0, L[0]) >= 0.5 * lineLen) {
+      const REACH = 80; // page units ≈ 2 grid squares / 2 ruled lines
+      const gp = o => yAt(o.b.x + o.b.w / 2) - (o.b.y + o.b.h);
+      const above = others.filter(o => { const ov = Math.min(o.b.x + o.b.w, Rt[0] + 20) - Math.max(o.b.x, L[0] - 20); const cy = o.b.y + o.b.h / 2; return Math.max(o.b.w, o.b.h) >= 6 && ov > Math.min(Math.max(o.b.w, 4), 40) * 0.4 && cy < yAt(o.b.x + o.b.w / 2) && gp(o) >= -0.7 * o.b.h && gp(o) <= REACH && o.b.h < 180; });
+      const nearest = above.length ? Math.min(...above.map(o => Math.max(0, gp(o)))) : 0;
+      const row = above.filter(o => Math.max(0, gp(o)) <= nearest + 30);
+      if (row.length) {
         const u = row.reduce((q, o) => ({ x0: Math.min(q.x0, o.b.x), y0: Math.min(q.y0, o.b.y), x1: Math.max(q.x1, o.b.x + o.b.w), y1: Math.max(q.y1, o.b.y + o.b.h) }), { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 });
-        const bottom = Math.max(u.y1, Math.min(yAt(u.x0), yAt(u.x1))); const rect = { x: u.x0, y: u.y0, w: u.x1 - u.x0, h: bottom - u.y0 + 4 };
-        if (!this.overlapsCard(rect)) this.addCard(rect, 'line', st);
-        return;
+        if (Math.min(u.x1, Rt[0]) - Math.max(u.x0, L[0]) >= 0.4 * (Rt[0] - L[0])) {
+          const bottom = Math.max(u.y1, Math.min(yAt(u.x0), yAt(u.x1))); const rect = { x: u.x0, y: u.y0, w: u.x1 - u.x0, h: bottom - u.y0 + 4 };
+          if (!this.overlapsCard(rect)) this.addCard(rect, 'line', st); return;
+        }
       }
+      // underline drawn on a picture (a cut-out, a screenshot)
+      const ly = Math.min(L[1], Rt[1]), im = imgs.find(i => Math.min(i.x + i.w, Rt[0]) - Math.max(i.x, L[0]) >= 0.6 * (Rt[0] - L[0]) && ly > i.y + 12 && ly < i.y + i.h + 12);
+      if (im) { const y0 = Math.max(im.y, ly - 64); const rect = { x: Math.max(im.x, L[0] - 4), y: y0, w: Math.min(im.x + im.w, Rt[0] + 4) - Math.max(im.x, L[0] - 4), h: Math.max(L[1], Rt[1]) - y0 + 4 }; if (!this.overlapsCard(rect)) this.addCard(rect, 'line', st); return; }
     }
-    // circle: a closed, smooth loop around something
-    const gap = Math.hypot(z[0] - a[0], z[1] - a[1]);
-    if (pr.circleQuiz && b.w >= 40 && b.h >= 26 && gap < 0.3 * Math.max(b.w, b.h) && len > 1.9 * Math.max(b.w, b.h) && len < 4.5 * Math.max(b.w, b.h) && cuspCount(simplify(pts, 3)) <= 2) {
-      const inside = others.filter(o => o.b.x >= b.x - 6 && o.b.y >= b.y - 6 && o.b.x + o.b.w <= b.x + b.w + 6 && o.b.y + o.b.h <= b.y + b.h + 6);
-      if (inside.length) { const rect = { x: b.x + 4, y: b.y + 4, w: b.w - 8, h: b.h - 8 }; if (!this.overlapsCard(rect)) this.addCard(rect, 'circle', st); }
+    // CIRCLE: a loop that comes back near its start, around writing or over a picture
+    const gap = Math.hypot(z[0] - a[0], z[1] - a[1]), mx = Math.max(b.w, b.h);
+    if (pr.circleQuiz && b.w >= 36 && b.h >= 22 && gap < 0.35 * mx && len > 1.8 * mx && len < 5 * mx) {
+      const poly = simplify(pts, 4);
+      const inside = others.filter(o => { const qs = simplify(o.x.points, 4); return qs.filter(q => inPoly(q, poly)).length >= 0.6 * qs.length; });
+      const onImg = imgs.some(i => { const ix = Math.min(i.x + i.w, b.x + b.w) - Math.max(i.x, b.x), iy = Math.min(i.y + i.h, b.y + b.h) - Math.max(i.y, b.y); return ix > 0 && iy > 0 && ix * iy >= 0.6 * b.w * b.h; });
+      if (inside.length || onImg) { const rect = { x: b.x + 4, y: b.y + 4, w: b.w - 8, h: b.h - 8 }; if (!this.overlapsCard(rect)) this.addCard(rect, 'circle', st); }
     }
   }
   overlapsCard(r) { return cardsOfPage(this.pageId).some(c => { const ix = Math.min(c.x + c.w, r.x + r.w) - Math.max(c.x, r.x), iy = Math.min(c.y + c.h, r.y + r.h) - Math.max(c.y, r.y); return ix > 0 && iy > 0 && ix * iy > 0.5 * Math.min(c.w * c.h, r.w * r.h); }); }
@@ -591,7 +614,7 @@ class Editor {
     const img = await getImg(url); if (!img) return; const max = 1400, k = Math.min(1, max / Math.max(img.width, img.height));
     const c = document.createElement('canvas'); c.width = img.width * k; c.height = img.height * k; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); const src = c.toDataURL('image/jpeg', .85);
     const i = this.slots.indexOf(this.slot), w = 520, h = w * c.height / c.width; const y = Math.max(20, Math.min(PH - h - 20, (this.scrollY - this.slotTop(i)) / this.s + 60));
-    this.page.images = this.page.images || []; const im = { id: uid(), src, x: (PW - w) / 2, y, w, h }; this.page.images.push(im);
+    this.page.images = this.page.images || []; const im = { id: uid(), src, x: (PW - w) / 2, y, w, h }; this.page.images.push(im); this.pushUndo({ type: 'imgadd', im });
     this.tool = 'move'; this.sel = im.id; this.save(); this.renderTools(); this.redraw(); toast('Picture added — drag to move, corner to resize'); $('#ed-file').value = '';
   }
   async click(e) {
@@ -608,7 +631,7 @@ class Editor {
     if (a === 'paper') { this.paperOpen = !this.paperOpen; return this.renderTools(); }
     if (a === 'undo') return this.doUndo(); if (a === 'redo') return this.doRedo();
     if (a === 'photo') return $('#ed-file').click();
-    if (a === 'delimg') { this.page.images = this.page.images.filter(i => i.id !== this.sel); this.sel = null; this.pruneCards(); this.save(); this.renderTools(); return this.redraw(); }
+    if (a === 'delimg') { const im = this.page.images.find(i => i.id === this.sel); this.page.images = this.page.images.filter(i => i.id !== this.sel); this.sel = null; const cards = this.pruneCards(); if (im) this.pushUndo({ type: 'imgdel', im, cards }); this.save(); this.renderTools(); return this.redraw(); }
     if (a === 'test') { if (!this.testing && !M.profile.tmIntro) { ui.sheet = 'tmintro'; return renderSheet(); } this.testing = !this.testing; this.revealed = {}; this.asking = null; this.renderTools(); return this.renderAllOverlays(); }
     if (a === 'quiz') { await savePageNow(this.page); ui.nbId = this.nbId; return startQuiz('page', { pageId: this.pageId }); }
     if (a === 'prev' && idx > 0) return this.scrollToSlot(idx - 1);
