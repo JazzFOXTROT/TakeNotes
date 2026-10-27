@@ -1,5 +1,5 @@
 'use strict';
-const BUILD = '2.0';
+const BUILD = '2.0.1';
 /* TakeNotes — web app (local-first, works offline when installed) */
 
 /* ---------- utils ---------- */
@@ -418,11 +418,14 @@ function inPoly(pt, poly) { let c = false; for (let i = 0, j = poly.length - 1; 
 const pathLen = pts => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return l; };
 
 function attachPad(cv, strokes, onInk) { // a simple writing pad (answers in the quiz) — not saved
-  if (!cv) return; const dpr = Math.min(2, devicePixelRatio || 1), r = cv.getBoundingClientRect(); cv.width = r.width * dpr; cv.height = r.height * dpr; const ctx = cv.getContext('2d');
+  if (!cv) return; const dpr = Math.min(2, devicePixelRatio || 1), ctx = cv.getContext('2d');
+  // the canvas is re-measured whenever its box changes, so the ink always lands under the pen
+  const fit = () => { const r = cv.getBoundingClientRect(); if (!r.width) return; const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; draw(); } };
   const pt = e => { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left), (e.clientY - b.top), e.pointerType === 'pen' ? (e.pressure || .5) : .5]; };
-  const draw = () => { ctx.clearRect(0, 0, cv.width, cv.height); for (const st of strokes) drawStroke(ctx, st, dpr); };
+  const draw = () => { const b = cv.getBoundingClientRect(), k = b.width ? cv.width / b.width : dpr; ctx.clearRect(0, 0, cv.width, cv.height); for (const st of strokes) drawStroke(ctx, st, k); };
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(cv); fit();
   let cur = null, pid = null;
-  cv.addEventListener('pointerdown', e => { if (cur) return; e.preventDefault(); pid = e.pointerId; try { cv.setPointerCapture(pid); } catch { } cur = { tool: 'pen', color: '#171614', size: 2.6, points: [pt(e)] }; strokes.push(cur); onInk?.(); draw(); });
+  cv.addEventListener('pointerdown', e => { if (cur) return; e.preventDefault(); fit(); pid = e.pointerId; try { cv.setPointerCapture(pid); } catch { } cur = { tool: 'pen', color: '#171614', size: 2.6, points: [pt(e)] }; strokes.push(cur); onInk?.(); draw(); });
   cv.addEventListener('pointermove', e => { if (!cur || e.pointerId !== pid) return; e.preventDefault(); let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e]; for (const ev of evs) cur.points.push(pt(ev)); draw(); });
   const end = e => { if (e.pointerId === pid) { cur = null; pid = null; } }; cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
   draw();
