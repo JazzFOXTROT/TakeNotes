@@ -1,5 +1,5 @@
 'use strict';
-const BUILD = '1.8';
+const BUILD = '1.9';
 /* TakeNotes — web app (local-first, works offline when installed) */
 
 /* ---------- utils ---------- */
@@ -23,15 +23,21 @@ const freeColor = () => COLORS.find(c => !M.notebooks.some(n => n.color === c)) 
 const swatches = (sel, attr) => `<div class="row g8 wrap">${COLORS.map(c => `<button ${attr}="${c}" class="swatch ${sel === c ? 'on' : ''}"><span class="c-${c}"></span></button>`).join('')}</div>`;
 const PAPERS = ['lines', 'grid', 'dots', 'blank'];
 const PW = 1000, PH = 1414; // page units
+const TONES = [['white', 'White', '#FFFFFF'], ['cream', 'Cream', '#FBF5E6'], ['dark', 'Dark', '#22211F']];
+const TONE = { white: { bg: '#fff', line: '#E2E7EF', dot: '#C9CFD9' }, cream: { bg: '#FBF5E6', line: '#E9DEC4', dot: '#D8CBAE' }, dark: { bg: '#22211F', line: '#3A3936', dot: '#55524C' } };
+const inkOn = (c, tone) => tone === 'dark' && c === '#171614' ? '#F2EFE8' : tone !== 'dark' && c === '#FFFFFF' ? '#171614' : c;
 
 /* ---------- icons ---------- */
 const P = {
   back: 'M15 18l-6-6 6-6', next: 'M9 6l6 6-6 6', close: 'M6 6l12 12M18 6L6 18', check: 'M5 12l5 5 9-10', plus: 'M12 6v12M6 12h12',
   pen: 'M4 20l4-1L19 8l-3-3L5 16l-1 4z', hl: 'M14 5l5 5-7 7H7v-5l7-7zM5 21h8', eraser: 'M8 20h12M5 15l8-8 5 5-7 7H9l-4-4z',
   move: 'M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3',
-  q: 'M5 5h14v14H5z', photo: 'M4 5h16v14H4zM4 15l5-5 5 5 3-3 3 3', undo: 'M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3', redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
+  q: 'M5 5h14v14H5z', shapes: 'M4 20l5-9 5 9zM14 4h6v6h-6z', chev: 'M7 10l5 5 5-5', grid4: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', photo: 'M4 5h16v14H4zM4 15l5-5 5 5 3-3 3 3', undo: 'M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3', redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
   trash: 'M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3', more: 'M5 12h.01M12 12h.01M19 12h.01', gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'
 };
+const DASHBOX = (c = '#171614') => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex:none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="${c}" stroke-width="1.8" stroke-dasharray="3 2.5"/></svg>`;
+const SHAPE_ICON = { rect: 'M4 6h16v12H4z', tri: 'M12 5l8 14H4z', ellipse: 'M12 6c4.4 0 8 2.7 8 6s-3.6 6-8 6-8-2.7-8-6 3.6-6 8-6z', arrow: 'M4 19L19 5M19 5h-7M19 5v7', line: 'M4 19L20 5', dash: 'M4 19l2.5-2.2M9 14.6l2.5-2.2M14 10.2l2.5-2.2M19 5.8l1-.8' };
+const PALETTE = ['#171614', '#6F6B64', '#3B63C4', '#1E88E5', '#0E9F9B', '#15803D', '#65A30D', '#CA8A04', '#EA580C', '#C2410C', '#DC2626', '#DB2777', '#9333EA', '#6D28D9', '#8B5E3C', '#FFFFFF'];
 const I = (d, c = '#171614', s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" style="flex:none"><path d="${P[d] || d}" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 /* ---------- storage (IndexedDB) ---------- */
@@ -89,6 +95,7 @@ function occursOn(c, d) {
 const SUBJECTS = ['Mathematics', 'Calculus', 'Statistics', 'Physics', 'Chemistry', 'Biology', 'Economics', 'Accounting', 'Psychology', 'History', 'Law', 'English', 'Computer science', 'Philosophy', 'Marketing', 'Sociology'];
 const FIELDS = ['Economics', 'Computer science', 'Psychology', 'Engineering', 'Medicine', 'Law', 'Business', 'Design', 'Biology', 'Mathematics', 'History', 'Nursing'];
 const chipsFor = (list, target) => `<div class="chips">${list.map(n => `<button class="chip" data-fill="${target}" data-val="${esc(n)}">${esc(n)}</button>`).join('')}</div>`;
+const clsNb = c => { const nb = nbById(c.notebookId); return nb ? { ...nb, name: c.name || nb.name, color: c.color || nb.color } : null; };
 function classNow() { const now = new Date(), m = now.getHours() * 60 + now.getMinutes(); return M.classes.find(c => occursOn(c, now) && toMin(c.start) <= m && m < toMin(c.end) && nbById(c.notebookId)); }
 function nextClass() { for (let i = 1; i <= 35; i++) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i); const cs = M.classes.filter(c => occursOn(c, d) && nbById(c.notebookId)).sort((a, b) => toMin(a.start) - toMin(b.start)); if (cs.length) return { c: cs[0], date: d, days: i }; } return null; }
 function classesToday() { const now = new Date(); return M.classes.filter(c => occursOn(c, now) && nbById(c.notebookId)).sort((a, b) => toMin(a.start) - toMin(b.start)); }
@@ -137,7 +144,7 @@ SCREENS.ob = () => {
     4: ['Mark it — it’s in your quiz', 'Questions come only from what you mark. No AI.', `<div class="col g10">
       ${[['Swipe the marker over it', 'Any shape — over, under or around, as messy as you like. That part is hidden in the quiz.', '<span style="font-family:var(--hand);font-size:28px;background:rgba(240,223,150,.8);border-radius:6px;padding:0 6px">slope of the tangent</span>'],
          ['Or underline / circle with the pen', 'Quick pen marks work too. You can turn this off in Settings.', '<span style="font-family:var(--hand);font-size:28px;border-bottom:2px solid #171614;padding:0 2px">2x + 1</span>'],
-         ['Or the Q tool', 'Drag a box around anything — a diagram, a cut-out.', `<span class="pill" style="background:var(--ink);color:#fff">Q</span>`]].map(([a, b, demo]) => `<div class="option" style="cursor:default"><span class="grow">${a}<span class="sub">${b}</span></span>${demo}</div>`).join('')}
+         ['Or the dashed box', 'Drag a box around anything — a diagram, a cut-out.', DASHBOX()]].map(([a, b, demo]) => `<div class="option" style="cursor:default"><span class="grow">${a}<span class="sub">${b}</span></span>${demo}</div>`).join('')}
       <div class="s15 sec" style="margin-top:4px">A <b>Q</b> appears on the right of each marked part. Tap it to take it out.</div></div>`]
   }[s];
   return `<div class="ob">${obTop(s, N)}<div class="ob-body"><div class="s14 b6 sec">Step ${s} of ${N}</div><div class="serif h1">${body[0]}</div><div class="s17 sec">${body[1]}</div><div style="height:12px"></div>${body[2]}</div>
@@ -146,22 +153,33 @@ SCREENS.ob = () => {
 mount.ob = () => { };
 
 /* ===== home ===== */
+function openNotebook(id) {
+  const nb = nbById(id); if (!nb) return go('home');
+  if (writtenPagesOf(id).length) return go('notebook', { nbId: id });
+  const ps = pagesOf(id), tail = ps[ps.length - 1]; ui.openPaper = true;
+  return go('editor', { pageId: tail && tail.n === 0 ? tail.id : newPage(id), nbId: id });
+}
+async function deleteNotebook(nb) {
+  if (!confirm(`Delete “${nb.name}” and all its pages? This can’t be undone.`)) return false;
+  for (const p of pagesOf(nb.id)) { await DB.del('page:' + p.id); pageCache.delete(p.id); }
+  M.pages = M.pages.filter(p => p.notebookId !== nb.id); M.cards = M.cards.filter(c => c.notebookId !== nb.id); M.classes = M.classes.filter(c => c.notebookId !== nb.id); M.notebooks = M.notebooks.filter(n => n.id !== nb.id); saveMeta(); toast(`${nb.name} deleted`); return true;
+}
 function nbMeta(nb) { const n = writtenPagesOf(nb.id).length; if (nb.exam) { const d = daysUntil(nb.exam); if (d >= 0) return d === 0 ? 'Exam today' : `Exam in ${d} day${d > 1 ? 's' : ''}`; } return n ? `${n} page${n > 1 ? 's' : ''}` : 'No pages yet'; }
 SCREENS.home = () => {
   const pr = M.profile, nbs = M.notebooks, now = classNow(), today = classesToday(), due = dueCards();
   const later = today.filter(c => toMin(c.start) > new Date().getHours() * 60 + new Date().getMinutes());
   const exams = nbs.filter(n => n.exam && daysUntil(n.exam) >= 0).sort((a, b) => a.exam.localeCompare(b.exam));
   const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  const nowCard = now ? (() => { const nb = nbById(now.notebookId); return `<div class="c-${nb.color}"><div class="s14 b6">Now · ${now.start} – ${now.end}</div><div class="serif h2">${esc(nb.name)}</div><div class="s15 sec">${esc(now.room || 'From your week')}</div><div style="flex:1;min-height:18px"></div><button class="btn ink" style="align-self:flex-start" data-open-today="${nb.id}">Open today’s page</button></div>`; })()
-    : later.length ? (() => { const c = later[0], nb = nbById(c.notebookId); return `<div class="c-${nb.color}"><div class="s14 b6">Next · ${c.start}</div><div class="serif h2">${esc(nb.name)}</div><div class="s15 sec">${esc(c.room || 'From your week')}</div><div style="flex:1;min-height:18px"></div><button class="btn ink" style="align-self:flex-start" data-open-nb="${nb.id}">Open notebook</button></div>`; })()
+  const nowCard = now ? (() => { const nb = clsNb(now); return `<div class="c-${nb.color}"><div class="s14 b6">Now · ${now.start} – ${now.end}</div><div class="serif h2">${esc(nb.name)}</div><div class="s15 sec">${esc(now.room || 'From your week')}</div><div style="flex:1;min-height:18px"></div><button class="btn ink" style="align-self:flex-start" data-open-today="${nb.id}">Open today’s page</button></div>`; })()
+    : later.length ? (() => { const c = later[0], nb = clsNb(c); return `<div class="c-${nb.color}"><div class="s14 b6">Next · ${c.start}</div><div class="serif h2">${esc(nb.name)}</div><div class="s15 sec">${esc(c.room || 'From your week')}</div><div style="flex:1;min-height:18px"></div><button class="btn ink" style="align-self:flex-start" data-open-nb="${nb.id}">Open notebook</button></div>`; })()
     : (() => { if (!M.classes.length) return `<div class="card"><div class="s14 b6 sec">Your week</div><div class="serif h2">Add your classes</div><div class="s15 sec">Add them once — the right notebook opens during each class.</div><div style="flex:1;min-height:18px"></div><button class="btn ink" style="align-self:flex-start" data-go="week">Add my week</button></div>`;
         const nx = nextClass(), seed = new Date().getDate(), pick = a => a[seed % a.length];
         const head = pick(['Done for today', 'Classes are over', 'That’s it for today', 'No more classes today']);
-        const tip = due.length ? pick(['A good moment for today’s questions.', 'Two minutes of questions now saves an hour later.', 'Your questions are ready when you are.']) : M.cards.length ? pick(['Everything’s reviewed — nice.', 'Nothing due. Look over today’s notes?']) : pick(['Underline the key lines from today — they’ll come back as questions.', 'Mark what matters in today’s notes.']);
+        const tip = due.length ? pick(['A good moment for today’s questions.', 'Two minutes of questions now saves an hour later.', 'Your questions are ready when you are.']) : M.cards.length ? pick(['Everything’s reviewed — nice.', 'Nothing due. Look over today’s notes?']) : pick(['Swipe the marker over today’s key lines — they’ll come back as questions.', 'Mark what matters in today’s notes.']);
         if (!nx) return `<div class="card"><div class="s14 b6 sec">${head}</div><div class="serif h2">No classes coming up</div><div class="s15 sec">${tip}</div><div style="flex:1;min-height:18px"></div><button class="btn muted" style="align-self:flex-start" data-go="week">See your week</button></div>`;
-        const nb = nbById(nx.c.notebookId), when = nx.days === 1 ? 'Tomorrow' : nx.days < 7 ? DAYS[weekdayIdx(nx.date)] : `${DAYS[weekdayIdx(nx.date)]} ${nx.date.getDate()} ${MONTHS[nx.date.getMonth()]}`;
+        const nb = clsNb(nx.c), when = nx.days === 1 ? 'Tomorrow' : nx.days < 7 ? DAYS[weekdayIdx(nx.date)] : `${DAYS[weekdayIdx(nx.date)]} ${nx.date.getDate()} ${MONTHS[nx.date.getMonth()]}`;
         return `<div class="card"><div class="s14 b6 sec">${head} · next up</div><div class="row g10" style="margin-top:2px"><span class="dot c-${nb.color}" style="width:14px;height:14px"></span><span class="serif h2">${esc(nb.name)}</span></div><div class="s16 b6">${when} at ${nx.c.start}${nx.c.room ? ' · ' + esc(nx.c.room) : ''}</div><div class="s15 sec">${tip}</div><div style="flex:1;min-height:18px"></div><button class="btn muted" style="align-self:flex-start" data-go="week">See your week</button></div>`; })();
-  const dueCard = `<div class="card"><div class="s14 b6 sec">Due today</div><div class="serif h2">${due.length ? `${due.length} question${due.length > 1 ? 's' : ''}` : 'All caught up'}</div><div class="s15 sec">${due.length ? `From ${[...new Set(due.map(c => nbById(c.notebookId)?.name).filter(Boolean))].join(', ')} · about ${Math.max(1, Math.round(due.length * 0.4))} min` : M.cards.length ? 'Questions come back when you’re about to forget them.' : 'Underline or circle in your notes to make questions.'}</div><div style="flex:1;min-height:18px"></div>${due.length ? `<button class="btn ink" style="align-self:flex-start" data-start="due">Start</button>` : M.cards.length ? `<button class="btn muted" style="align-self:flex-start" data-start="practice">Practice anyway</button>` : `<button class="btn ink" style="align-self:flex-start" disabled>Start</button>`}</div>`;
+  const dueCard = `<div class="card"><div class="s14 b6 sec">Due today</div><div class="serif h2">${due.length ? `${due.length} question${due.length > 1 ? 's' : ''}` : 'All caught up'}</div><div class="s15 sec">${due.length ? `From ${[...new Set(due.map(c => nbById(c.notebookId)?.name).filter(Boolean))].join(', ')} · about ${Math.max(1, Math.round(due.length * 0.4))} min` : M.cards.length ? 'Questions come back when you’re about to forget them.' : 'Swipe the marker over anything in your notes to make questions.'}</div><div style="flex:1;min-height:18px"></div>${due.length ? `<button class="btn ink" style="align-self:flex-start" data-start="due">Start</button>` : M.cards.length ? `<button class="btn muted" style="align-self:flex-start" data-start="practice">Practice anyway</button>` : `<button class="btn ink" style="align-self:flex-start" disabled>Start</button>`}</div>`;
   return `<div class="home">
     <nav class="side">
       <div class="serif" style="font-size:24px;padding-left:14px">TakeNotes</div><div style="height:18px"></div>
@@ -181,7 +199,7 @@ SCREENS.home = () => {
     </div>
     <aside class="right card">
       <div class="s17 b7">Classes today</div><div style="height:8px"></div>
-      ${today.length ? today.map(c => { const nb = nbById(c.notebookId); return `<button class="row g12" style="padding:11px 0;width:100%;text-align:left" data-open-nb="${nb.id}"><span class="s15 b5 sec" style="width:44px">${c.start}</span><span class="c-${nb.color}" style="width:4px;height:28px;border-radius:2px"></span><span class="grow s16 b6">${esc(nb.name)}</span>${now && now.id === c.id ? '<span class="pill" style="background:var(--ink);color:#fff;font-size:12px;padding:4px 10px">Now</span>' : ''}</button>`; }).join('') : `<div class="s15 sec" style="padding:6px 0">${M.classes.length ? 'No classes today.' : 'Add your week to see classes here.'}</div>`}
+      ${today.length ? today.map(c => { const nb = clsNb(c); return `<button class="row g12" style="padding:11px 0;width:100%;text-align:left" data-open-nb="${nb.id}"><span class="s15 b5 sec" style="width:44px">${c.start}</span><span class="c-${nb.color}" style="width:4px;height:28px;border-radius:2px"></span><span class="grow s16 b6">${esc(nb.name)}</span>${now && now.id === c.id ? '<span class="pill" style="background:var(--ink);color:#fff;font-size:12px;padding:4px 10px">Now</span>' : ''}</button>`; }).join('') : `<div class="s15 sec" style="padding:6px 0">${M.classes.length ? 'No classes today.' : 'Add your week to see classes here.'}</div>`}
       <div style="height:26px"></div><div class="s17 b7">Exams</div><div style="height:10px"></div>
       ${exams.length ? exams.map(n => { const d = new Date(n.exam + 'T00:00'); const left = daysUntil(n.exam); return `<button class="row g14" style="background:var(--canvas);border-radius:18px;padding:12px;margin-bottom:10px;width:100%;text-align:left" data-open-nb="${n.id}"><span class="date-tile c-${n.color}"><b>${d.getDate()}</b><small>${MONTHS[d.getMonth()]}</small></span><span class="grow"><div class="s16 b6">${esc(n.name)}</div><div class="s14 sec">${left === 0 ? 'today' : `in ${left} day${left > 1 ? 's' : ''}`}</div></span></button>`; }).join('') : '<div class="s15 sec">Add an exam date inside a notebook.</div>'}
     </aside>
@@ -203,7 +221,7 @@ SCREENS.week = () => {
   <div class="week-wrap"><div class="week" id="week">
     ${DAYS.map((d, i) => `<div style="position:absolute;left:calc(56px + (100% - 66px) * ${i / 7});width:calc((100% - 66px) / 7);top:12px;text-align:center"><span class="pill" style="${i === today ? 'background:var(--ink);color:#fff' : 'color:var(--text2)'}">${d} ${dateOfWeekday(off, i).getDate()}</span></div>`).join('')}
     ${Array.from({ length: g.hours + 1 }, (_, i) => `<div class="s12 b5 sec" style="position:absolute;left:12px;top:calc(52px + (100% - 66px) * ${i / g.hours} - 8px)">${pad2(minH + i)}:00</div><div style="position:absolute;left:56px;right:10px;height:1px;background:var(--muted);top:calc(52px + (100% - 66px) * ${i / g.hours})"></div>`).join('')}
-    ${blocks.map(([c, i]) => { const nb = nbById(c.notebookId); return `<div class="cls c-${nb.color}" data-cid="${c.id}" data-col="${i}" style="${blkStyle(i, toMin(c.start), toMin(c.end), g)}"><i class="h-top"></i><div class="s14 b6">${esc(nb.name)}</div><div class="s12 b5 sec" data-time>${c.start}–${c.end}</div><div class="s12 sec">${[c.room, rep[c.repeat]].filter(Boolean).map(esc).join(' · ')}</div><i class="h-bot"></i></div>`; }).join('')}
+    ${blocks.map(([c, i]) => { const nb = clsNb(c); return `<div class="cls c-${nb.color}" data-cid="${c.id}" data-col="${i}" style="${blkStyle(i, toMin(c.start), toMin(c.end), g)}"><i class="h-top"></i><div class="s14 b6">${esc(nb.name)}</div><div class="s12 b5 sec" data-time>${c.start}–${c.end}</div><div class="s12 sec">${[c.room, rep[c.repeat]].filter(Boolean).map(esc).join(' · ')}</div><i class="h-bot"></i></div>`; }).join('')}
     ${nowTop > 0 && nowTop < 1 && today >= 0 ? `<div style="position:absolute;left:calc(56px + (100% - 66px) * ${today / 7});width:calc((100% - 66px) / 7);top:calc(52px + (100% - 66px) * ${nowTop});height:2px;background:var(--ink);pointer-events:none"></div>` : ''}
     ${cls.length ? '' : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none"><div class="s16 sec">No classes yet — tap a slot or “Add class”.</div></div>`}
   </div></div>`;
@@ -232,23 +250,23 @@ mount.week = () => {
     if (!D.moved) return openClassSheet(D.c.id);
     const c = D.c, shift = D.nc - D.col; c.start = fmtMin(D.ns); c.end = fmtMin(D.ne);
     if (shift) { if (c.anchor) { c.anchor = addDays(c.anchor, shift); c.day = weekdayIdx(new Date(c.anchor + 'T00:00')); } else c.day = (c.day + shift + 7) % 7; }
-    saveMeta(); render(); toast(`${nbById(c.notebookId).name} · ${c.start}–${c.end}`);
+    saveMeta(); render(); toast(`${clsNb(c).name} · ${c.start}–${c.end}`);
   };
   w.addEventListener('pointerup', end); w.addEventListener('pointercancel', () => { drag = null; tap = null; render(); });
 };
 function openClassSheet(id, pre = {}) {
   const c = id ? M.classes.find(x => x.id === id) : null; const off = ui.weekOff || 0;
   ui.editClass = id || null;
-  ui.form = c ? { nb: c.notebookId, newName: '', color: freeColor(), day: c.anchor ? weekdayIdx(new Date(c.anchor + 'T00:00')) : c.day, start: c.start, end: c.end, room: c.room || '', repeat: c.repeat || 'weekly', until: c.until || '' }
-    : { nb: 'new', newName: '', color: freeColor(), day: pre.day ?? (off ? 0 : weekdayIdx()), start: pre.start || '10:00', end: pre.end || '11:30', room: '', repeat: 'weekly', until: '' };
-  ui.sheet = 'addclass'; renderSheet();
+  ui.form = c ? { nb: c.name ? 'new' : c.notebookId, newName: c.name || '', color: c.color || freeColor(), mkNb: !c.name, into: c.notebookId, day: c.anchor ? weekdayIdx(new Date(c.anchor + 'T00:00')) : c.day, start: c.start, end: c.end, room: c.room || '', repeat: c.repeat || 'weekly', until: c.until || '' }
+    : { nb: pre.nb || 'new', newName: '', color: freeColor(), mkNb: true, into: M.notebooks[0]?.id, day: pre.day ?? (off ? 0 : weekdayIdx()), start: pre.start || '10:00', end: pre.end || '11:30', room: '', repeat: 'weekly', until: '' };
+  ui.sheet = 'addclass'; renderSheet(); if (pre.slide) $('.sheet')?.classList.add('slide');
 }
 
 /* ===== notebook ===== */
 SCREENS.notebook = () => {
   const nb = nbById(ui.nbId); if (!nb) return '';
   const ps = writtenPagesOf(nb.id), cards = M.cards.filter(c => c.notebookId === nb.id), due = cards.filter(c => c.due <= endOfToday());
-  const groups = {}; ps.slice().reverse().forEach(p => { (groups[p.dateKey] = groups[p.dateKey] || []).push(p); });
+  const groups = {}; ps.forEach((p, i) => { p._n = i + 1; (groups[p.dateKey] = groups[p.dateKey] || []).push(p); });
   return `<div class="ed-top"><button class="row g6" data-go="home">${I('back')}<span class="s16 b5">Today</span></button><span class="grow"></span><button class="icon-btn" data-sheet="nbsettings" title="Notebook settings">${I('more')}</button></div>
   <div class="scroll" style="flex:1;padding:6px var(--pad) var(--pad)"><div class="col g20">
     <div class="row g16 wrap"><span class="c-${nb.color}" style="width:56px;height:56px;border-radius:16px;flex:none"></span>
@@ -257,8 +275,8 @@ SCREENS.notebook = () => {
       <button class="btn muted sm" data-new-page="${nb.id}">Write</button>
       <button class="btn ink sm" data-sheet="quiz" ${cards.length ? '' : 'disabled'}>Quiz</button></div>
     ${due.length ? `<div class="card row g16" style="padding:18px 20px"><div class="grow"><div class="s17 b7">${due.length} question${due.length > 1 ? 's' : ''} due</div><div class="s15 sec">From this notebook — the ones you’re about to forget.</div></div><button class="btn ink sm" data-start="nbdue">Review</button></div>` : ''}
-    ${!cards.length && ps.length ? `<div class="empty-note s15 sec">No questions yet. In your notes, <b>underline</b> a line or <b>circle</b> a word — or use the <b>Q</b> tool — and it goes into the quiz.</div>` : ''}
-    ${ps.length ? Object.entries(groups).map(([dk, arr]) => `<div class="s18 b7">${dk === dayKey() ? 'Today' : fmtDate(new Date(dk + 'T00:00').getTime())}</div><div class="pages">${arr.map(p => `<button class="col g8" style="text-align:left" data-open-page="${p.id}"><div class="thumb"><canvas data-thumb="${p.id}"></canvas></div><span class="s14 sec">${cardsOfPage(p.id).length ? `${cardsOfPage(p.id).length} Q · ` : ''}${new Date(p.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></button>`).join('')}</div>`).join('')
+    ${!cards.length && ps.length ? `<div class="empty-note s15 sec">No questions yet. Swipe the <b>marker</b> over anything in your notes — or draw a <b>dashed box</b> around it — and it goes into the quiz.</div>` : ''}
+    ${ps.length ? Object.entries(groups).map(([dk, arr]) => `<div class="s18 b7">${dk === dayKey() ? 'Today' : fmtDate(new Date(dk + 'T00:00').getTime())}</div><div class="pages">${arr.map(p => `<button class="col g8" style="text-align:left" data-open-page="${p.id}"><div class="thumb"><canvas data-thumb="${p.id}"></canvas></div><span class="s14 sec"><b style="color:var(--text)">Page ${p._n}</b>${cardsOfPage(p.id).length ? ` · ${cardsOfPage(p.id).length} Q` : ''}</span></button>`).join('')}</div>`).join('')
       : `<div class="col g12" style="align-items:center;padding:60px 0"><div class="thumb" style="width:180px"></div><div class="serif h2" style="margin-top:8px">Your first page is waiting</div><div class="s16 sec">Paper: ${nb.paper}. You can switch it any time in the toolbar.</div><button class="btn ink" data-new-page="${nb.id}">Start writing</button></div>`}
   </div></div>`;
 };
@@ -324,17 +342,18 @@ SCREENS.results = () => {
 /* ---------- drawing ---------- */
 const imgCache = new Map();
 function getImg(src) { if (imgCache.has(src)) return imgCache.get(src); const p = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; }); imgCache.set(src, p); return p; }
-function drawPaper(ctx, paper, s, w, h) {
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
-  if (paper === 'lines') { ctx.strokeStyle = '#E2E7EF'; ctx.lineWidth = Math.max(1, s * 1.2); for (let y = 110; y < PH; y += 44) { ctx.beginPath(); ctx.moveTo(0, y * s); ctx.lineTo(w, y * s); ctx.stroke(); } }
-  if (paper === 'grid') { ctx.strokeStyle = '#E2E7EF'; ctx.lineWidth = Math.max(1, s * 1.1); for (let x = 22; x < PW; x += 36) { ctx.beginPath(); ctx.moveTo(x * s, 0); ctx.lineTo(x * s, h); ctx.stroke(); } for (let y = 22; y < PH; y += 36) { ctx.beginPath(); ctx.moveTo(0, y * s); ctx.lineTo(w, y * s); ctx.stroke(); } }
-  if (paper === 'dots') { ctx.fillStyle = '#C9CFD9'; const r = Math.max(1, s * 2); for (let x = 22; x < PW; x += 36) for (let y = 22; y < PH; y += 36) { ctx.beginPath(); ctx.arc(x * s, y * s, r, 0, 7); ctx.fill(); } }
+function drawPaper(ctx, paper, s, w, h, tone = 'white') {
+  const T = TONE[tone] || TONE.white; ctx.fillStyle = T.bg; ctx.fillRect(0, 0, w, h);
+  if (paper === 'lines') { ctx.strokeStyle = T.line; ctx.lineWidth = Math.max(1, s * 1.2); for (let y = 110; y < PH; y += 44) { ctx.beginPath(); ctx.moveTo(0, y * s); ctx.lineTo(w, y * s); ctx.stroke(); } }
+  if (paper === 'grid') { ctx.strokeStyle = T.line; ctx.lineWidth = Math.max(1, s * 1.1); for (let x = 22; x < PW; x += 36) { ctx.beginPath(); ctx.moveTo(x * s, 0); ctx.lineTo(x * s, h); ctx.stroke(); } for (let y = 22; y < PH; y += 36) { ctx.beginPath(); ctx.moveTo(0, y * s); ctx.lineTo(w, y * s); ctx.stroke(); } }
+  if (paper === 'dots') { ctx.fillStyle = T.dot; const r = Math.max(1, s * 2); for (let x = 22; x < PW; x += 36) for (let y = 22; y < PH; y += 36) { ctx.beginPath(); ctx.arc(x * s, y * s, r, 0, 7); ctx.fill(); } }
 }
 function strokePath(ctx, pts, s) { ctx.beginPath(); ctx.moveTo(pts[0][0] * s, pts[0][1] * s); for (let i = 1; i < pts.length - 1; i++) { const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2; ctx.quadraticCurveTo(pts[i][0] * s, pts[i][1] * s, mx * s, my * s); } const l = pts[pts.length - 1]; ctx.lineTo(l[0] * s, l[1] * s); }
-function drawStroke(ctx, st, s) {
-  const pts = st.points; if (!pts.length) return;
-  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = st.color; ctx.fillStyle = st.color;
-  if (st.tool === 'hl') { ctx.globalAlpha = .6; ctx.globalCompositeOperation = 'multiply'; ctx.lineWidth = st.size * s; if (pts.length === 1) pts.push([pts[0][0] + .1, pts[0][1]]); strokePath(ctx, pts, s); ctx.stroke(); ctx.restore(); return; }
+function drawStroke(ctx, st, s, tone = 'white') {
+  const pts = st.points; if (!pts.length) return; const col = inkOn(st.color, tone);
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = col; ctx.fillStyle = col;
+  if (st.shape) { ctx.lineWidth = st.size * s; if (st.dash) ctx.setLineDash([st.size * s * 4, st.size * s * 3]); ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q[0] * s, q[1] * s) : ctx.moveTo(q[0] * s, q[1] * s)); ctx.stroke(); ctx.restore(); return; }
+  if (st.tool === 'hl') { ctx.globalAlpha = tone === 'dark' ? .45 : .6; ctx.globalCompositeOperation = tone === 'dark' ? 'screen' : 'multiply'; ctx.lineWidth = st.size * s; if (pts.length === 1) pts.push([pts[0][0] + .1, pts[0][1]]); strokePath(ctx, pts, s); ctx.stroke(); ctx.restore(); return; }
   if (pts.length === 1) { ctx.beginPath(); ctx.arc(pts[0][0] * s, pts[0][1] * s, st.size * s * .5, 0, 7); ctx.fill(); ctx.restore(); return; }
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i], pr = (a[2] + b[2]) / 2; ctx.lineWidth = Math.max(.6, st.size * s * (0.45 + pr * 0.9));
@@ -344,10 +363,10 @@ function drawStroke(ctx, st, s) {
   ctx.restore();
 }
 async function drawPage(ctx, p, s, opt = {}) {
-  const w = ctx.canvas.width, h = ctx.canvas.height; drawPaper(ctx, p.paper, s, w, h);
+  const w = ctx.canvas.width, h = ctx.canvas.height, tone = nbById(p.notebookId)?.tone || 'white'; drawPaper(ctx, p.paper, s, w, h, tone);
   for (const im of p.images || []) { const img = await getImg(im.src); if (img) ctx.drawImage(img, im.x * s, im.y * s, im.w * s, im.h * s); }
   const ordered = [...p.strokes.filter(x => x.tool === 'hl'), ...p.strokes.filter(x => x.tool !== 'hl')];
-  for (const st of ordered) drawStroke(ctx, st, s);
+  for (const st of ordered) drawStroke(ctx, st, s, tone);
 }
 async function drawCrop(cv, p, card, hide) {
   const top = Math.max(0, card.y - 130), bottom = Math.min(PH, card.y + card.h + 90);
@@ -393,7 +412,7 @@ class Editor {
     this.root.innerHTML = `<div class="ed">
       <div class="ed-top">
         <button class="row g6" data-ed="back">${I('back')}<span class="s16 b5" id="ed-nb"></span></button>
-        <div class="grow col" style="align-items:center"><div class="s16 b6" id="ed-title"></div><div class="s13 sec" id="ed-sub"></div></div>
+        <button class="grow col" style="align-items:center" data-ed="pages" title="All pages"><div class="s16 b6 row g4" style="justify-content:center"><span id="ed-title"></span>${I('chev', '#6F6B64', 16)}</div><div class="s13 sec" id="ed-sub"></div></button>
         <button class="icon-btn" data-ed="prev">${I('back', '#6F6B64')}</button><button class="icon-btn" data-ed="next">${I('next', '#6F6B64')}</button>
         <button class="btn sm muted" data-ed="test" id="ed-test">Test myself</button><button class="btn sm muted" data-ed="quiz">Quiz</button>
       </div>
@@ -413,17 +432,17 @@ class Editor {
     const ps = pagesOf(this.nbId);
     for (const p of ps) this.addSlot(p.id);
     await this.ensureTrailing();
-    this.layout();
+    this.layout(); this.styleSlots();
     const i = Math.max(0, this.slots.findIndex(s => s.id === this.startId));
     this.scrollY = 0; this.scrollBy(this.slotTop(i)); await this.activate(this.slots[i]);
     const r = ui.restore; if (r && r.pageId === this.startId) { this.zoom = r.zoom; this.layout(false); this.scrollY = 0; this.scrollX = 0; this.scrollBy(r.y, r.x); this.renderTools(); } ui.restore = null; this.updateVisible();
-    if (!M.profile.tipShown) { M.profile.tipShown = true; saveMeta(); toast('Pen writes · marker makes questions · two fingers zoom'); } if (ui.paperTip) { toast(ui.paperTip); ui.paperTip = null; }
+    if (!M.profile.tipShown) { M.profile.tipShown = true; saveMeta(); toast('Pen writes · marker makes questions · two fingers zoom'); } if (ui.openPaper) { ui.openPaper = false; this.paperOpen = true; this.renderTools(); }
   }
   addSlot(id) {
     const el = document.createElement('div'); el.className = 'page'; el.dataset.slot = id;
     el.innerHTML = `<canvas></canvas><canvas></canvas><div class="over" style="position:absolute;inset:0"></div>`;
     this.inner.appendChild(el);
-    const [base, live] = el.querySelectorAll('canvas'); const s = { id, el, base, live, over: el.querySelector('.over'), page: null, ready: false };
+    const [base, live] = el.querySelectorAll('canvas'); const s = { id, el, base, live, over: el.querySelector('.over'), page: null, ready: false }; el.style.background = (TONE[this.nb?.tone] || TONE.white).bg;
     this.slots.push(s); if (this.w) this.sizeSlot(s); return s;
   }
   async ensureTrailing() { // always keep one empty page at the end
@@ -445,12 +464,17 @@ class Editor {
     $('#ed-sub').textContent = this.isEmpty(this.page) ? 'New page' : `${fmtDate(this.page.createdAt)} · ${cardsOfPage(this.pageId).length} Q`;
     $('#ed-test').className = 'btn sm ' + (this.testing ? 'ink' : 'muted'); $('#ed-test').textContent = this.testing ? 'Done' : 'Test myself';
     $('[data-ed="prev"]').style.opacity = idx > 0 ? 1 : .3; $('[data-ed="next"]').style.opacity = idx < n - 1 ? 1 : .3;
-    const t = (k, ic, title) => `<button class="icon-btn ${this.tool === k ? 'on' : ''}" data-tool="${k}" title="${title}">${I(ic)}</button>`;
+    const on = k => this.tool === k ? 'on' : '', t = (k, ic, title) => `<button class="icon-btn ${on(k)}" data-tool="${k}" title="${title}">${I(ic, this.tool === k ? '#fff' : '#171614')}</button>`;
+    const cols = M.profile.colors || (M.profile.colors = ['#171614', '#3B63C4', '#C2410C', '#15803D']), tone = this.nb.tone || 'white';
+    const shapeBtn = `<div class="pop-wrap"><button class="icon-btn ${on('shape')}" data-ed="shapes" title="Shapes">${this.tool === 'shape' ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="${SHAPE_ICON[this.shape]}" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${this.shape === 'dash' ? '' : ''}/></svg>` : I('shapes')}</button>${this.shapesOpen ? `<div class="pop pop-row">${Object.keys(SHAPE_ICON).map(k => `<button class="icon-btn ${this.tool === 'shape' && this.shape === k ? 'on' : ''}" data-shape="${k}" title="${k}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="${SHAPE_ICON[k]}" stroke="${this.tool === 'shape' && this.shape === k ? '#fff' : '#171614'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`).join('')}</div>` : ''}</div>`;
     $('#ed-tools').innerHTML = `
-      <div class="tool-group">${t('pen', 'pen', 'Pen')}${t('hl', 'hl', 'Highlighter')}${t('eraser', 'eraser', 'Eraser')}${t('move', 'move', 'Move pictures')}${t('q', 'q', 'Q — drag a box to make a question')}</div>
-      <div class="tool-group">${['#171614', '#3B63C4', '#C2410C', '#15803D'].map(c => `<button class="sw ${this.color === c ? 'on' : ''}" data-color="${c}"><i style="background:${c}"></i></button>`).join('')}<button class="icon-btn" data-ed="size" title="Line size"><span style="width:${{ s: 6, m: 10, l: 15 }[this.size]}px;height:${{ s: 6, m: 10, l: 15 }[this.size]}px;border-radius:50%;background:#171614"></span></button></div>
-      <div class="pop-wrap"><button class="tool-group paper-btn" data-ed="paper">${this.page.paper[0].toUpperCase() + this.page.paper.slice(1)} ${I('M7 10l5 5 5-5', '#6F6B64', 18)}</button>${this.paperOpen ? `<div class="pop">${PAPERS.map(p => `<button class="${this.page.paper === p ? 'on' : ''}" data-paper="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div>` : ''}</div>
+      <div class="tool-group">${t('pen', 'pen', 'Pen')}${t('eraser', 'eraser', 'Eraser')}</div>
+      <div class="tool-group quiz-group" title="Make a question">${t('hl', 'hl', 'Marker — whatever you mark goes into the quiz')}<button class="icon-btn ${on('q')}" data-tool="q" title="Dashed box — hide this in the quiz">${DASHBOX(this.tool === 'q' ? '#fff' : '#171614')}</button></div>
+      <div class="tool-group">${shapeBtn}${t('move', 'move', 'Move pictures')}</div>
+      <div class="pop-wrap"><div class="tool-group">${cols.map((c, i) => `<button class="sw ${this.color === c ? 'on' : ''}" data-color="${c}" data-slot="${i}"><i style="background:${inkOn(c, tone)};${c === '#FFFFFF' || (tone === 'dark' && c === '#171614') ? 'box-shadow:inset 0 0 0 1px #ccc' : ''}"></i></button>`).join('')}<button class="icon-btn" data-ed="size" title="Line size"><span style="width:${{ s: 6, m: 10, l: 15 }[this.size]}px;height:${{ s: 6, m: 10, l: 15 }[this.size]}px;border-radius:50%;background:#171614"></span></button></div>${this.paletteFor !== undefined && this.paletteFor !== null ? `<div class="pop"><div class="s13 b6 sec" style="padding:4px 6px 8px">Pick a colour for this slot</div><div class="palette">${PALETTE.map(c => `<button data-pal="${c}" style="background:${c}" class="${cols[this.paletteFor] === c ? 'on' : ''}"></button>`).join('')}</div></div>` : ''}</div>
+      <div class="pop-wrap"><button class="tool-group paper-btn" data-ed="paper">${this.page.paper[0].toUpperCase() + this.page.paper.slice(1)} ${I('chev', '#6F6B64', 18)}</button>${this.paperOpen ? `<div class="pop paper-pop"><div class="s13 b6 sec">Paper</div><div class="seg">${PAPERS.map(p => `<button class="${this.page.paper === p ? 'on' : ''}" data-paper="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div><div class="s13 b6 sec" style="margin-top:6px">Paper colour</div><div class="row g8">${TONES.map(([k, l, bg]) => `<button class="tone ${tone === k ? 'on' : ''}" data-tone="${k}"><span style="background:${bg}"></span>${l}</button>`).join('')}</div><div class="s12 sec" style="margin-top:4px">Colour applies to the whole notebook. Change it later from the notebook’s menu too.</div></div>` : ''}</div>
       ${(this.zoom || 1) !== 1 ? `<button class="tool-group paper-btn" data-ed="fit">${Math.round(this.zoom * 100)}%</button>` : ''}<div class="tool-group"><button class="icon-btn" data-ed="photo" title="Insert photo">${I('photo')}</button>${this.sel ? `<button class="icon-btn" data-ed="delimg" title="Delete picture">${I('trash')}</button>` : ''}<button class="icon-btn" data-ed="undo" title="Undo">${I('undo')}</button><button class="icon-btn" data-ed="redo" title="Redo">${I('redo')}</button></div>`;
+    for (const pop of $$('#ed-tools .pop')) { const r = pop.getBoundingClientRect(), over = r.right - (innerWidth - 8); if (over > 0) pop.style.left = `${-over}px`; const r2 = pop.getBoundingClientRect(); if (r2.left < 8) pop.style.left = `${parseFloat(pop.style.left || 0) + 8 - r2.left}px`; }
   }
   get gap() { return 24; }
   slotTop(i) { return i * (this.h + this.gap); }
@@ -496,6 +520,7 @@ class Editor {
       if (this.scrollY === y0) vy = 0; if (this.scrollX === x0) vx = 0; if (Math.hypot(vx, vy) < 0.02) { this.flingId = null; this.updateVisible(); return; } this.flingId = requestAnimationFrame(step); };
     this.flingId = requestAnimationFrame(step); }
   commitZoom(P) {
+    if (P.z0 <= 0.55 && P.k < 0.9) { this.scrollBy(0); return this.openPages(); }
     const c = P.c || P.c0, fx = (P.c0[0] + P.sx) / P.W, fy = (P.c0[1] + P.sy) / P.H; let z = Math.round(P.z0 * P.k * 20) / 20; if (Math.abs(z - 1) < 0.08) z = 1; z = Math.min(3, Math.max(0.5, z));
     this.zoom = z; this.layout(false); const W = this.inner.scrollWidth, H = this.inner.scrollHeight;
     this.scrollX = 0; this.scrollY = 0; this.scrollBy(fy * H - c[1], fx * W - c[0]); this.renderTools();
@@ -523,7 +548,7 @@ class Editor {
       if (this.touches.size === 2) { this.twoStart = Date.now(); const [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); this.pinch = { d0: Math.hypot(p1.x - p2.x, p1.y - p2.y), c0: [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top], z0: this.zoom || 1, sx: this.scrollX || 0, sy: this.scrollY, k: 1, c: null, W: this.inner.scrollWidth, H: this.inner.scrollHeight }; }
       e.preventDefault(); return;
     }
-    if (this.paperOpen) { this.paperOpen = false; this.renderTools(); }
+    if (this.paperOpen || this.shapesOpen || (this.paletteFor !== null && this.paletteFor !== undefined)) { this.paperOpen = false; this.shapesOpen = false; this.paletteFor = null; this.renderTools(); }
     if ((!this.isDrawPointer(e) && !fingerMove) || this.testing) return;
     if (this.penActive && this.penActive !== e.pointerId) return;
     const el = e.target.closest('.page'); if (!el) return; const slot = this.slots.find(s => s.el === el); if (!slot?.page) return;
@@ -534,6 +559,7 @@ class Editor {
     if (tool === 'pen' || tool === 'hl') { const size = tool === 'hl' ? { s: 18, m: 26, l: 36 }[this.size] : { s: 2.2, m: 3.2, l: 5 }[this.size]; this.cur = { id: uid(), tool, color: tool === 'hl' ? '#F0DF96' : this.color, size, points: [p] }; }
     if (tool === 'eraser') { this.erased = []; this.eraseAt(p); }
     if (tool === 'q') this.box = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
+    if (tool === 'shape') { this.shp = { a: p, b: p }; }
     if (tool === 'move') { const im = [...(this.page.images || [])].reverse().find(i => p[0] >= i.x && p[0] <= i.x + i.w && p[1] >= i.y && p[1] <= i.y + i.h); this.sel = im?.id || null; if (im) { const resize = p[0] > im.x + im.w - 60 && p[1] > im.y + im.h - 60; this.drag = { im, p, ox: im.x, oy: im.y, ow: im.w, oh: im.h, resize }; } this.renderTools(); this.renderOverlay(); }
   }
   move(e) {
@@ -546,6 +572,7 @@ class Editor {
     let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e]; const tool = this.curTool;
     if (this.cur) { for (const ev of evs) this.cur.points.push(this.pt(ev)); this.drawLive(); }
     if (tool === 'eraser') for (const ev of evs) this.eraseAt(this.pt(ev));
+    if (tool === 'shape' && this.shp) { this.shp.b = this.pt(e); const ctx = this.live.getContext('2d'); ctx.clearRect(0, 0, this.live.width, this.live.height); drawStroke(ctx, this.shapeStroke(), this.s * this.dpr, this.nb.tone); }
     if (tool === 'q' && this.box) { const p = this.pt(e); this.box.x1 = p[0]; this.box.y1 = p[1]; this.renderOverlay(); }
     if (tool === 'move' && this.drag) { const p = this.pt(e), d = this.drag, dx = p[0] - d.p[0], dy = p[1] - d.p[1]; if (d.resize) { const r = d.oh / d.ow; d.im.w = Math.min(PW - d.im.x, Math.max(60, d.ow + dx)); d.im.h = d.im.w * r; this.clampImg(d.im); } else { d.im.x = Math.min(Math.max(0, d.ox + dx), PW - d.im.w); d.im.y = d.oy + dy; } this.slot.el.style.zIndex = 5; this.renderOverlay(); if (d.resize) this.redraw(); }
   }
@@ -563,6 +590,7 @@ class Editor {
     if (e.pointerId !== this.penActive) return; this.penActive = null; const tool = this.curTool;
     if (this.cur) { const st = this.cur; this.cur = null; this.live.getContext('2d').clearRect(0, 0, this.live.width, this.live.height); if (st.points.length > 1 || st.tool === 'pen') { if (st.tool === 'pen' && this.scratchOut(st)) { this.redraw(); this.save(); return; } this.page.strokes.push(st); this.pushUndo({ type: 'add', stroke: st }); try { if (st.tool === 'pen') this.detectMark(st); else this.markFromHighlighter(st); } catch (err) { console.error(err); } this.redraw(); this.save(); } }
     if (tool === 'eraser' && this.erased?.length) { const cards = this.pruneCards(); this.pushUndo({ type: 'erase', strokes: this.erased, cards }); this.erased = null; this.save(); }
+    if (tool === 'shape' && this.shp) { const st = this.shapeStroke(); this.shp = null; this.live.getContext('2d').clearRect(0, 0, this.live.width, this.live.height); const bb = bboxOf(st.points); if (bb.w + bb.h > 12) { this.page.strokes.push(st); this.pushUndo({ type: 'add', stroke: st }); this.redraw(); this.save(); } }
     if (tool === 'q' && this.box) { const b = this.box; this.box = null; const x = Math.min(b.x0, b.x1), y = Math.min(b.y0, b.y1), w = Math.abs(b.x1 - b.x0), h = Math.abs(b.y1 - b.y0); if (w > 20 && h > 14) this.addCard({ x, y, w, h }, 'box'); else this.renderOverlay(); }
     if (tool === 'move' && this.drag) { const d = this.drag; this.drag = null; this.slot.el.style.zIndex = '';
       const i = this.slots.indexOf(this.slot), cy = d.im.y + d.im.h / 2, step = PH + this.gap / this.s;
@@ -574,7 +602,25 @@ class Editor {
     if (meta) { meta.n = p.strokes.length + (p.images || []).length; if (wasEmpty && !empty) { meta.dateKey = dayKey(); meta.createdAt = p.createdAt = Math.max(Date.now(), ...M.pages.filter(x => x.notebookId === p.notebookId && x.id !== p.id).map(x => x.createdAt + 1)); } }
     savePage(p); if (slot === this.slots[this.slots.length - 1] && !empty) this.ensureTrailing().then(() => this.renderTools()); else this.renderTools();
   }
-  drawLive() { const ctx = this.live.getContext('2d'); ctx.clearRect(0, 0, this.live.width, this.live.height); drawStroke(ctx, this.cur, this.s * this.dpr); }
+  shapeStroke() {
+    const [ax, ay] = this.shp.a, [bx, by] = this.shp.b, k = this.shape || 'rect', x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by); let pts;
+    if (k === 'rect') pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+    else if (k === 'tri') pts = [[(x0 + x1) / 2, y0], [x1, y1], [x0, y1], [(x0 + x1) / 2, y0]];
+    else if (k === 'ellipse') { pts = []; for (let i = 0; i <= 64; i++) { const t = i / 64 * Math.PI * 2; pts.push([(x0 + x1) / 2 + Math.cos(t) * (x1 - x0) / 2, (y0 + y1) / 2 + Math.sin(t) * (y1 - y0) / 2]); } }
+    else if (k === 'arrow') { const ang = Math.atan2(by - ay, bx - ax), L = Math.min(28, Math.hypot(bx - ax, by - ay) * 0.35); pts = [[ax, ay], [bx, by], [bx - L * Math.cos(ang - 0.45), by - L * Math.sin(ang - 0.45)], [bx, by], [bx - L * Math.cos(ang + 0.45), by - L * Math.sin(ang + 0.45)]]; }
+    else pts = [[ax, ay], [bx, by]];
+    return { id: uid(), tool: 'pen', shape: k, dash: k === 'dash', color: this.color, size: { s: 2.2, m: 3.2, l: 5 }[this.size], points: pts.map(q => [q[0], q[1], .5]) };
+  }
+  styleSlots() { const bg = (TONE[this.nb.tone] || TONE.white).bg; for (const sl of this.slots) sl.el.style.background = bg; }
+  async openPages() {
+    this.closePages(); const cur = this.slots.indexOf(this.slot), ov = document.createElement('div'); ov.className = 'pages-ov';
+    ov.innerHTML = `<div class="ed-top"><span class="serif h2 grow">${esc(this.nb.name)} · all pages</span><button class="btn ink sm" data-ed="closepages">Done</button></div><div class="pages-grid">${this.slots.map((sl, i) => `<button class="col g6 ${i === cur ? 'cur' : ''}" data-goto="${i}"><div class="thumb"><canvas data-ov="${i}"></canvas></div><span class="s14 b6">${i + 1}${i === this.slots.length - 1 ? ' · new' : ''}</span></button>`).join('')}</div>`;
+    this.root.querySelector('.ed').appendChild(ov); this.pagesOv = ov;
+    ov.querySelector('.cur')?.scrollIntoView({ block: 'center' });
+    for (const cv of ov.querySelectorAll('[data-ov]')) { const sl = this.slots[+cv.dataset.ov]; const pg = sl.page || await loadPage(sl.id); if (!pg || !this.pagesOv) continue; const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); cv.width = r.width * dpr; cv.height = r.height * dpr; await drawPage(cv.getContext('2d'), pg, cv.width / PW); }
+  }
+  closePages() { this.pagesOv?.remove(); this.pagesOv = null; }
+  drawLive() { const ctx = this.live.getContext('2d'); ctx.clearRect(0, 0, this.live.width, this.live.height); drawStroke(ctx, this.cur, this.s * this.dpr, this.nb.tone); }
   eraseAt(p) { const r = 14; const before = this.page.strokes.length; const keep = []; for (const st of this.page.strokes) { if (st.points.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r + st.size / 2)) this.erased.push(st); else keep.push(st); } if (keep.length !== before) { this.page.strokes = keep; this.redraw(); } }
   pushUndo(a) { a.slot = this.slot; this.undo.push(a); if (this.undo.length > 100) this.undo.shift(); this.redo = []; }
   applyOn(a, f) { const prev = this.slot; this.slot = a.slot; this.page = a.slot.page; this.pageId = a.slot.id; f(); saveMeta(); this.save(a.slot); this.redraw(a.slot); this.slot = prev; this.page = prev.page; this.pageId = prev.id; this.renderTools(); }
@@ -679,10 +725,14 @@ class Editor {
     this.tool = 'move'; this.sel = im.id; this.save(); this.renderTools(); this.redraw(); toast('Picture added — drag to move, corner to resize'); $('#ed-file').value = '';
   }
   async click(e) {
-    const b = e.target.closest('[data-ed],[data-tool],[data-color],[data-size],[data-paper],[data-card],[data-reveal-card],[data-tm]'); if (!b) return; const d = b.dataset;
-    if (d.tool) { this.tool = d.tool; if (d.tool !== 'move') this.sel = null; this.renderTools(); this.renderOverlay(); return; }
-    if (d.color) { this.color = d.color; if (this.tool !== 'pen') this.tool = 'pen'; return this.renderTools(); }
-    if (d.paper) { this.paperOpen = false; this.page.paper = d.paper; this.nb.paper = d.paper; const last = this.slots[this.slots.length - 1]; if (last.page && this.isEmpty(last.page)) { last.page.paper = d.paper; savePage(last.page); this.redraw(last); } saveMeta(); savePage(this.page); this.renderTools(); return this.redraw(); }
+    const b = e.target.closest('[data-ed],[data-tool],[data-color],[data-size],[data-paper],[data-tone],[data-shape],[data-pal],[data-card],[data-reveal-card],[data-tm],[data-goto]'); if (!b) return; const d = b.dataset;
+    if (d.tool) { this.tool = d.tool; this.shapesOpen = false; this.paletteFor = null; if (d.tool !== 'move') this.sel = null; this.renderTools(); this.renderOverlay(); if (d.tool === 'q' && !M.profile.boxTip) { M.profile.boxTip = true; saveMeta(); toast('Drag a box around anything — it’s hidden in the quiz'); } return; }
+    if (d.shape) { this.tool = 'shape'; this.shape = d.shape; this.shapesOpen = false; return this.renderTools(); }
+    if (d.pal) { const cols = M.profile.colors; cols[this.paletteFor] = d.pal; this.color = d.pal; this.paletteFor = null; saveMeta(); if (!['pen', 'shape'].includes(this.tool)) this.tool = 'pen'; return this.renderTools(); }
+    if (d.color) { const now = Date.now(), slot = +d.slot; if (this.lastSw && this.lastSw.slot === slot && now - this.lastSw.t < 380) { this.lastSw = null; this.paletteFor = slot; return this.renderTools(); } this.lastSw = { slot, t: now }; this.paletteFor = null; this.color = d.color; if (!['pen', 'shape'].includes(this.tool)) this.tool = 'pen'; if (!M.profile.palTip) { M.profile.palTip = true; saveMeta(); toast('Double-tap a colour to swap it for another'); } return this.renderTools(); }
+    if (d.tone) { this.nb.tone = d.tone; saveMeta(); for (const sl of this.slots) if (sl.ready) this.redraw(sl); this.styleSlots(); return this.renderTools(); }
+    if (d.goto !== undefined) { this.closePages(); return this.scrollToSlot(+d.goto); }
+    if (d.paper) { this.page.paper = d.paper; this.nb.paper = d.paper; const last = this.slots[this.slots.length - 1]; if (last.page && this.isEmpty(last.page)) { last.page.paper = d.paper; savePage(last.page); this.redraw(last); } saveMeta(); savePage(this.page); this.renderTools(); return this.redraw(); }
     if (d.card) { if (confirm('Take this out of the quiz?')) { M.cards = M.cards.filter(c => c.id !== d.card); saveMeta(); this.renderTools(); this.renderAllOverlays(); toast('Taken out of the quiz'); } return; }
     if (d.revealCard) { this.revealed[d.revealCard] = true; this.asking = d.revealCard; return this.renderAllOverlays(); }
     if (d.tm !== undefined) { const c = M.cards.find(x => x.id === this.asking); if (c) schedule(c, +d.tm); this.asking = null; return this.renderAllOverlays(); }
@@ -690,7 +740,10 @@ class Editor {
     if (a === 'back') { for (const s of this.slots) if (s.page) savePageNow(s.page); return go('notebook', { nbId: this.nbId }); }
     if (a === 'fit') { this.zoom = 1; this.layout(); return this.renderTools(); }
     if (a === 'size') { this.size = { s: 'm', m: 'l', l: 's' }[this.size]; return this.renderTools(); }
-    if (a === 'paper') { this.paperOpen = !this.paperOpen; return this.renderTools(); }
+    if (a === 'paper') { this.paperOpen = !this.paperOpen; this.shapesOpen = false; this.paletteFor = null; return this.renderTools(); }
+    if (a === 'shapes') { if (this.tool !== 'shape') { this.tool = 'shape'; this.shape = this.shape || 'rect'; } this.shapesOpen = !this.shapesOpen; this.paperOpen = false; return this.renderTools(); }
+    if (a === 'pages') return this.openPages();
+    if (a === 'closepages') return this.closePages();
     if (a === 'undo') return this.doUndo(); if (a === 'redo') return this.doRedo();
     if (a === 'photo') return $('#ed-file').click();
     if (a === 'delimg') { const im = this.page.images.find(i => i.id === this.sel); this.page.images = this.page.images.filter(i => i.id !== this.sel); this.sel = null; const cards = this.pruneCards(); if (im) this.pushUndo({ type: 'imgdel', im, cards }); this.save(); this.renderTools(); return this.redraw(); }
@@ -699,7 +752,7 @@ class Editor {
     if (a === 'prev' && idx > 0) return this.scrollToSlot(idx - 1);
     if (a === 'next' && idx < this.slots.length - 1) return this.scrollToSlot(idx + 1);
   }
-  startTesting() { this.testing = true; this.revealed = {}; this.asking = null; this.renderTools(); this.renderAllOverlays(); if (!cardsOfPage(this.pageId).length) toast('Nothing to test on this page yet — underline or circle something first'); }
+  startTesting() { this.testing = true; this.revealed = {}; this.asking = null; this.renderTools(); this.renderAllOverlays(); if (!cardsOfPage(this.pageId).length) toast('Nothing to test on this page yet — mark something with the marker first'); }
 }
 
 /* ===== sheets ===== */
@@ -708,13 +761,14 @@ SHEETS.newnb = () => `<div class="dim" data-dim><div class="sheet col g16">
   <div class="col g8"><span class="label">Subject</span><input class="field" id="nb-name" placeholder="e.g. Mathematics" autocomplete="off" autocapitalize="words" enterkeyhint="done">${chipsFor(SUBJECTS.filter(x => !M.notebooks.some(n => n.name.toLowerCase() === x.toLowerCase())).slice(0, 10), 'nb-name')}</div>
   <div class="col g8"><span class="label">Colour</span>${swatches(freeColor(), 'data-pick-color')}</div>
   <div class="col g8"><span class="label">Paper</span><div class="seg" id="nb-paper" style="align-self:flex-start">${PAPERS.map((p, i) => `<button class="${i === 0 ? 'on' : ''}" data-pick-paper="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div><span class="s13 sec" id="nb-hint">You can switch any time in the toolbar.</span></div>
+  <div class="row g12"><div class="grow"><div class="s16 b6">Add to my week</div><div class="s13 sec">Next you pick the day and time — the notebook opens on its own during class.</div></div><button class="toggle" data-nb-week><i></i></button></div>
   <div class="sheet-foot"><button class="btn ink" style="width:100%" data-create-nb>Create notebook</button></div></div></div>`;
 mountSheet.newnb = () => {
   const st = { color: freeColor(), paper: 'lines', touched: false }; const name = $('#nb-name');
   const paint = () => { $$('[data-pick-color]').forEach(b => b.classList.toggle('on', b.dataset.pickColor === st.color)); $$('[data-pick-paper]').forEach(b => b.classList.toggle('on', b.dataset.pickPaper === st.paper)); };
   name.addEventListener('input', () => { if (!st.touched) { st.paper = suggestPaper(name.value); paint(); $('#nb-hint').textContent = st.paper === 'grid' ? `Grid suggested for ${name.value} — switch any time.` : 'You can switch any time in the toolbar.'; } });
-  $('.sheet').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.pickColor) { st.color = b.dataset.pickColor; paint(); } if (b.dataset.pickPaper) { st.paper = b.dataset.pickPaper; st.touched = true; paint(); }
-    if (b.dataset.createNb !== undefined) { const n = name.value.trim(); if (!n) { name.focus(); return; } const nb = { id: uid(), name: n, color: st.color, paper: st.paper, createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); saveMeta(); ui.sheet = null; ui.paperTip = `${nb.paper[0].toUpperCase() + nb.paper.slice(1)} paper — switch it any time in the toolbar`; go('editor', { pageId: newPage(nb.id), nbId: nb.id }); } });
+  $('.sheet').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.nbWeek !== undefined) { st.week = !st.week; b.classList.toggle('on', st.week); $('[data-create-nb]').textContent = st.week ? 'Next — when is it?' : 'Create notebook'; } if (b.dataset.pickColor) { st.color = b.dataset.pickColor; paint(); } if (b.dataset.pickPaper) { st.paper = b.dataset.pickPaper; st.touched = true; paint(); }
+    if (b.dataset.createNb !== undefined) { const n = name.value.trim(); if (!n) { name.focus(); return; } const nb = { id: uid(), name: n, color: st.color, paper: st.paper, createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); saveMeta(); if (st.week) { ui.afterNb = nb.id; return openClassSheet(null, { nb: nb.id, slide: true }); } ui.sheet = null; openNotebook(nb.id); } });
 };
 SHEETS.addclass = () => {
   const f = ui.form, c = ui.editClass ? M.classes.find(x => x.id === ui.editClass) : null, off = ui.weekOff || 0;
@@ -723,20 +777,21 @@ SHEETS.addclass = () => {
   const sum = { once: `Only on ${dl}.`, weekly: `Every ${DAYS[f.day]}, from ${dl}`, biweekly: `Every other ${DAYS[f.day]}, from ${dl}`, monthly: `Every month on the ${date.getDate()}, from ${dl}` }[f.repeat] + (f.repeat !== 'once' && f.until ? ` until ${fmtDate(new Date(f.until + 'T00:00').getTime())}.` : f.repeat !== 'once' ? '.' : '');
   const taken = new Set(M.notebooks.map(n => n.name.toLowerCase()));
   return `<div class="dim" data-dim><div class="sheet col g16">
-  <div class="row"><span class="serif h2 grow">${c ? 'Edit class' : 'Add class'}</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
-  <div class="col g10"><span class="label">Subject</span>
+  <div class="row"><span class="serif h2 grow">${c ? 'Edit class' : ui.afterNb ? `When is ${esc(nbById(ui.afterNb)?.name || '')}?` : 'Add class'}</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
+  ${ui.afterNb ? '' : `<div class="col g10"><span class="label">Subject</span>
     ${M.notebooks.length ? `<div class="seg" style="align-self:flex-start"><button class="${f.nb === 'new' ? 'on' : ''}" data-f-nb="new">New subject</button><button class="${f.nb !== 'new' ? 'on' : ''}" data-f-mine>My subjects · ${M.notebooks.length}</button></div>` : ''}
     ${f.nb === 'new' ? `<input class="field" id="cl-name" data-f="newName" placeholder="e.g. Physics" value="${esc(f.newName)}" autocomplete="off" autocapitalize="words">${chipsFor(SUBJECTS.filter(x => !taken.has(x.toLowerCase())).slice(0, 8), 'cl-name')}`
       : `<div class="chips">${M.notebooks.map(n => `<button class="chip ${f.nb === n.id ? 'on' : ''}" data-f-nb="${n.id}"><span class="dot c-${n.color}"></span>${esc(n.name)}</button>`).join('')}</div>`}
     <span class="label" style="margin-top:4px">Colour</span>${swatches(f.nb === 'new' ? f.color : nbById(f.nb)?.color, 'data-f-color')}
-    ${f.nb === 'new' ? '<div class="s13 sec">A notebook in this colour is created too — ready for the first class.</div>' : ''}</div>
+    ${f.nb === 'new' && M.notebooks.length ? `<div class="row g12" style="margin-top:6px"><div class="grow"><div class="s16 b6">Create a notebook for it</div><div class="s13 sec">${f.mkNb ? 'Ready for the first class.' : 'Pick where you write it — e.g. part 2 of a course, or a practicum.'}</div></div><button class="toggle ${f.mkNb ? 'on' : ''}" data-f-mknb><i></i></button></div>
+      ${f.mkNb ? '' : `<span class="label">Write it in</span><div class="chips">${M.notebooks.map(n => `<button class="chip ${f.into === n.id ? 'on' : ''}" data-f-into="${n.id}"><span class="dot c-${n.color}"></span>${esc(n.name)}</button>`).join('')}</div>`}` : f.nb === 'new' ? '<div class="s13 sec">A notebook in this colour is created too — ready for the first class.</div>' : ''}</div>`}
   <div class="col g8"><span class="label">Day</span><div class="chips">${DAYS.map((d, i) => `<button class="chip ${f.day === i ? 'on' : ''}" data-f-day="${i}">${d} ${dateOfWeekday(off, i).getDate()}</button>`).join('')}</div></div>
   <div class="row g12"><div class="col g8 grow"><span class="label">Starts</span><input type="time" step="900" class="field" data-f="start" value="${f.start}"></div><div class="col g8 grow"><span class="label">Ends</span><input type="time" step="900" class="field" data-f="end" value="${f.end}"></div></div>
   <div class="col g8"><span class="label">Repeats</span><div class="seg" style="align-self:flex-start;flex-wrap:wrap">${[['once', 'Once'], ['weekly', 'Every week'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Monthly']].map(([k, t]) => `<button class="${f.repeat === k ? 'on' : ''}" data-f-rep="${k}">${t}</button>`).join('')}</div></div>
   ${f.repeat !== 'once' ? `<div class="col g8"><span class="label">Until (optional) — e.g. end of semester</span><div class="row g8"><input type="date" class="field grow" data-f="until" value="${f.until}">${f.until ? `<button class="btn muted sm" data-f-clear>No end</button>` : ''}</div></div>` : ''}
   <div class="col g8"><span class="label">Room (optional)</span><input class="field" data-f="room" value="${esc(f.room)}" placeholder="e.g. Room 204" autocomplete="off"></div>
   <div class="s14 b5 sec">${esc(sum)}</div>
-  <div class="row g12 sheet-foot">${c ? '<button class="btn muted grow" data-del-class>Delete</button>' : ''}<button class="btn ink grow" data-save-class>${c ? 'Save' : 'Add to my week'}</button></div></div></div>`;
+  <div class="row g12 sheet-foot">${c ? '<button class="btn muted grow" data-del-class>Delete</button>' : ''}${ui.afterNb ? '<button class="btn muted grow" data-skip-class>Skip</button>' : ''}<button class="btn ink grow" data-save-class>${c ? 'Save' : 'Add to my week'}</button></div></div></div>`;
 };
 mountSheet.addclass = () => {
   const f = ui.form, c = ui.editClass ? M.classes.find(x => x.id === ui.editClass) : null, sh = $('.sheet');
@@ -745,6 +800,9 @@ mountSheet.addclass = () => {
   sh.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
     if (d.fNb) { f.nb = d.fNb; return renderSheet(); }
     if (d.fMine !== undefined) { if (f.nb === 'new') f.nb = M.notebooks[0]?.id || 'new'; return renderSheet(); }
+    if (d.fMknb !== undefined) { f.mkNb = !f.mkNb; if (!f.into) f.into = M.notebooks[0]?.id; return renderSheet(); }
+    if (d.fInto) { f.into = d.fInto; return renderSheet(); }
+    if (d.skipClass !== undefined) { const nbId = ui.afterNb; ui.afterNb = null; ui.sheet = null; return openNotebook(nbId); }
     if (d.fColor) { if (f.nb === 'new') f.color = d.fColor; else { nbById(f.nb).color = d.fColor; saveMeta(); } return renderSheet(); }
     if (d.fDay !== undefined) { f.day = +d.fDay; return renderSheet(); }
     if (d.fRep) { f.repeat = d.fRep; return renderSheet(); }
@@ -752,12 +810,14 @@ mountSheet.addclass = () => {
     if (d.saveClass !== undefined) {
       if (!f.start || !f.end || toMin(f.end) <= toMin(f.start)) return toast('End time should be after the start');
       let nbId = f.nb;
-      if (nbId === 'new') { const n = f.newName.trim(); if (!n) return toast('Write the subject name first'); const nb = { id: uid(), name: n, color: f.color || freeColor(), paper: suggestPaper(n), createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); nbId = nb.id; }
+      let own = {};
+      if (nbId === 'new') { const n = f.newName.trim(); if (!n) return toast('Write the subject name first'); if (f.mkNb || !M.notebooks.length) { const nb = { id: uid(), name: n, color: f.color || freeColor(), paper: suggestPaper(n), createdAt: Date.now(), exam: '' }; M.notebooks.push(nb); nbId = nb.id; } else { nbId = f.into || M.notebooks[0].id; own = { name: n, color: f.color }; } }
+      else own = { name: '', color: '' };
       const off = ui.weekOff || 0; let anchor;
       if (c && c.anchor && f.day === weekdayIdx(new Date(c.anchor + 'T00:00'))) anchor = c.anchor; else anchor = dayKey(dateOfWeekday(off, f.day));
-      const data = { notebookId: nbId, day: f.day, start: f.start, end: f.end, room: f.room.trim(), repeat: f.repeat, anchor, until: f.repeat === 'once' ? '' : f.until };
+      const data = { notebookId: nbId, ...own, day: f.day, start: f.start, end: f.end, room: f.room.trim(), repeat: f.repeat, anchor, until: f.repeat === 'once' ? '' : f.until };
       if (c) Object.assign(c, data); else M.classes.push({ id: uid(), ...data });
-      saveMeta(); ui.sheet = null; ui.editClass = null; render(); toast(c ? 'Saved' : f.repeat === 'once' ? 'Added for that day' : 'Added to your week');
+      saveMeta(); ui.sheet = null; ui.editClass = null; if (ui.afterNb) { const id = ui.afterNb; ui.afterNb = null; toast('Added to your week'); return openNotebook(id); } render(); toast(c ? 'Saved' : f.repeat === 'once' ? 'Added for that day' : 'Added to your week');
     }
     if (d.delClass !== undefined) { M.classes = M.classes.filter(x => x.id !== c.id); saveMeta(); ui.sheet = null; ui.editClass = null; render(); toast('Class deleted'); }
   });
@@ -772,11 +832,26 @@ mountSheet.quiz = () => $('.sheet').addEventListener('click', e => { const b = e
 SHEETS.nbsettings = () => { const nb = nbById(ui.nbId); return `<div class="dim" data-dim><div class="sheet col g16"><div class="row"><span class="serif h2 grow">Notebook</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
   <div class="col g8"><span class="label">Name</span><input class="field" id="ns-name" value="${esc(nb.name)}" autocomplete="off"></div>
   <div class="col g8"><span class="label">Colour</span>${swatches(nb.color, 'data-ns-color')}</div>
-  <div class="row g12"><button class="btn muted grow" data-ns-del>Delete notebook</button><button class="btn ink grow" data-ns-save>Save</button></div></div></div>`; };
-mountSheet.nbsettings = () => { const nb = nbById(ui.nbId); let color = nb.color; $('.sheet').addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
+  <div class="col g8"><span class="label">Paper</span><div class="seg" style="align-self:flex-start">${PAPERS.map(x => `<button class="${(nb.paper || 'lines') === x ? 'on' : ''}" data-ns-paper="${x}">${x[0].toUpperCase() + x.slice(1)}</button>`).join('')}</div></div>
+  <div class="col g8"><span class="label">Paper colour</span><div class="row g10">${TONES.map(([k, l, bg]) => `<button class="tone ${(nb.tone || 'white') === k ? 'on' : ''}" data-ns-tone="${k}"><span style="background:${bg}"></span>${l}</button>`).join('')}</div></div>
+  <div class="row g12 sheet-foot"><button class="btn muted grow" data-ns-del>Delete notebook</button><button class="btn ink grow" data-ns-save>Save</button></div></div></div>`; };
+mountSheet.nbsettings = () => { const nb = nbById(ui.nbId); let color = nb.color, paper = nb.paper || 'lines', tone = nb.tone || 'white'; $('.sheet').addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.nsPaper) { paper = b.dataset.nsPaper; $$('[data-ns-paper]').forEach(x => x.classList.toggle('on', x.dataset.nsPaper === paper)); }
+  if (b.dataset.nsTone) { tone = b.dataset.nsTone; $$('[data-ns-tone]').forEach(x => x.classList.toggle('on', x.dataset.nsTone === tone)); }
   if (b.dataset.nsColor) { color = b.dataset.nsColor; $$('[data-ns-color]').forEach(x => x.classList.toggle('on', x.dataset.nsColor === color)); }
-  if (b.dataset.nsSave !== undefined) { nb.name = $('#ns-name').value.trim() || nb.name; nb.color = color; saveMeta(); ui.sheet = null; render(); }
-  if (b.dataset.nsDel !== undefined && confirm(`Delete “${nb.name}” and all its pages? This can’t be undone.`)) { for (const p of pagesOf(nb.id)) { await DB.del('page:' + p.id); pageCache.delete(p.id); } M.pages = M.pages.filter(p => p.notebookId !== nb.id); M.cards = M.cards.filter(c => c.notebookId !== nb.id); M.classes = M.classes.filter(c => c.notebookId !== nb.id); M.notebooks = M.notebooks.filter(n => n.id !== nb.id); saveMeta(); go('home'); } }); };
+  if (b.dataset.nsSave !== undefined) { nb.name = $('#ns-name').value.trim() || nb.name; nb.color = color; if (paper !== nb.paper) { nb.paper = paper; for (const pm of pagesOf(nb.id)) if (pm.n === 0) { const pg = await loadPage(pm.id); if (pg) { pg.paper = paper; savePage(pg); } } } nb.tone = tone; saveMeta(); ui.sheet = null; render(); }
+  if (b.dataset.nsDel !== undefined && await deleteNotebook(nb)) { ui.sheet = null; go('home'); } }); };
+SHEETS.nbmenu = () => { const nb = nbById(ui.nbId); return `<div class="dim" data-dim><div class="sheet col g8" style="width:min(380px,100%)">
+  <div class="row g12" style="margin-bottom:6px"><span class="c-${nb.color}" style="width:36px;height:36px;border-radius:10px"></span><span class="serif h2 grow">${esc(nb.name)}</span><button class="icon-btn" data-close>${I('close', '#6F6B64')}</button></div>
+  <button class="option" style="background:var(--canvas)" data-menu="write"><span class="grow">Write</span></button>
+  <button class="option" style="background:var(--canvas)" data-menu="pages"><span class="grow">All pages<span class="sub">${writtenPagesOf(nb.id).length} pages · ${M.cards.filter(c => c.notebookId === nb.id).length} questions</span></span></button>
+  <button class="option" style="background:var(--canvas)" data-menu="edit"><span class="grow">Edit<span class="sub">Name, colour, paper</span></span></button>
+  <button class="option" style="background:var(--canvas);color:#B42318" data-menu="delete"><span class="grow">Delete</span></button></div></div>`; };
+mountSheet.nbmenu = () => $('.sheet').addEventListener('click', async e => { const b = e.target.closest('[data-menu]'); if (!b) return; const nb = nbById(ui.nbId), m = b.dataset.menu;
+  if (m === 'write') { ui.sheet = null; const ps = pagesOf(nb.id), tail = ps[ps.length - 1]; return go('editor', { pageId: tail && tail.n === 0 ? tail.id : newPage(nb.id), nbId: nb.id }); }
+  if (m === 'pages') return go('notebook', { nbId: nb.id });
+  if (m === 'edit') { ui.sheet = 'nbsettings'; return renderSheet(); }
+  if (m === 'delete' && await deleteNotebook(nb)) { ui.sheet = null; render(); } });
 SHEETS.tmintro = () => `<div class="dim" data-dim><div class="sheet col g16" style="width:min(520px,100%)">
   <div class="row g12">${[['Your Q part', '<span style="font-family:var(--hand);font-size:22px;background:rgba(240,223,150,.75);border-radius:6px;padding:0 6px">(c)′ = 0</span>'], ['Hidden', '<span style="display:block;width:90px;height:30px;border-radius:8px;background:var(--yellow)"></span>'], ['Recalled?', '<span class="row g6"><span class="pill" style="background:var(--muted);font-size:11px;padding:4px 8px">Not yet</span><span class="pill" style="background:var(--ink);color:#fff;font-size:11px;padding:4px 8px">Knew it</span></span>']].map(([c, v]) => `<div class="grow col g8" style="background:var(--canvas);border-radius:18px;padding:12px;align-items:center"><div style="height:40px;display:flex;align-items:center">${v}</div><div class="s13 b6 sec">${c}</div></div>`).join('')}</div>
   <div class="serif h2">Test myself</div><div class="s16 sec" style="line-height:1.45">We hide everything with a Q on this page. Try to recall it, then tap to check. Whatever you don’t remember comes back in a few days.</div>
@@ -784,10 +859,17 @@ SHEETS.tmintro = () => `<div class="dim" data-dim><div class="sheet col g16" sty
 mountSheet.tmintro = () => $('[data-tm-start]').addEventListener('click', () => { M.profile.tmIntro = true; saveMeta(); ui.sheet = null; renderSheet(); editor?.startTesting(); });
 
 /* ===== global events ===== */
+let lpTimer = null, lpAt = null;
+document.addEventListener('pointerdown', e => { const b = e.target.closest('[data-open-nb]'); if (!b || ui.screen === 'editor') return; lpAt = [e.clientX, e.clientY];
+  lpTimer = setTimeout(() => { lpTimer = null; ui.suppressClick = true; setTimeout(() => { ui.suppressClick = false; }, 800); ui.nbId = b.dataset.openNb; ui.sheet = 'nbmenu'; renderSheet(); navigator.vibrate?.(10); }, 450); });
+document.addEventListener('pointermove', e => { if (lpTimer && lpAt && Math.hypot(e.clientX - lpAt[0], e.clientY - lpAt[1]) > 10) { clearTimeout(lpTimer); lpTimer = null; } });
+['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }));
+document.addEventListener('contextmenu', e => { if (e.target.closest('[data-open-nb]')) e.preventDefault(); });
 document.addEventListener('click', async e => {
+  if (ui.suppressClick) { ui.suppressClick = false; e.preventDefault(); return; }
   const b = e.target.closest('button,[data-dim]'); if (!b) return; const d = b.dataset;
-  if (d.dim !== undefined && e.target === b) { ui.sheet = null; ui.editClass = null; return renderSheet(); }
-  if (d.close !== undefined) { ui.sheet = d.then || null; ui.editClass = null; return renderSheet(); }
+  if (d.dim !== undefined && e.target === b) { ui.sheet = null; ui.editClass = null; ui.afterNb = null; return renderSheet(); }
+  if (d.close !== undefined) { ui.sheet = d.then || null; ui.editClass = null; ui.afterNb = null; return renderSheet(); }
   if (b.closest('.ed') && !b.closest('.dim')) return; // editor handles its own
   if (d.obNext !== undefined) {
     const pr = M.profile; if (ui.ob === 1) pr.name = ($('#f-name')?.value || '').trim(); if (ui.ob === 2) pr.study = ($('#f-study')?.value || '').trim();
@@ -797,7 +879,8 @@ document.addEventListener('click', async e => {
   if (d.daily) { M.profile.daily = +d.daily; saveMeta(); return render(); }
   if (d.go) return go(d.go);
   if (d.sheet) { ui.sheet = d.sheet; return renderSheet(); }
-  if (d.openNb) { if (!writtenPagesOf(d.openNb).length) { const nb = nbById(d.openNb), ps = pagesOf(d.openNb), tail = ps[ps.length - 1]; ui.paperTip = `${nb.paper[0].toUpperCase() + nb.paper.slice(1)} paper — switch it any time in the toolbar`; return go('editor', { pageId: tail && tail.n === 0 ? tail.id : newPage(d.openNb), nbId: d.openNb }); } return go('notebook', { nbId: d.openNb }); }
+  if (d.openNb) return openNotebook(d.openNb);
+  if (false) { if (!writtenPagesOf(d.openNb).length) { const nb = nbById(d.openNb), ps = pagesOf(d.openNb), tail = ps[ps.length - 1]; ui.paperTip = `${nb.paper[0].toUpperCase() + nb.paper.slice(1)} paper — switch it any time in the toolbar`; return go('editor', { pageId: tail && tail.n === 0 ? tail.id : newPage(d.openNb), nbId: d.openNb }); } return go('notebook', { nbId: d.openNb }); }
   if (d.openToday) return go('editor', { pageId: writingPage(d.openToday), nbId: d.openToday });
   if (d.newPage) { const ps = pagesOf(d.newPage), tail = ps[ps.length - 1]; return go('editor', { pageId: tail && tail.n === 0 ? tail.id : newPage(d.newPage), nbId: d.newPage }); }
   if (d.openPage) return go('editor', { pageId: d.openPage });
