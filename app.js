@@ -1,5 +1,5 @@
 'use strict';
-const BUILD = '1.9';
+const BUILD = '2.0';
 /* TakeNotes — web app (local-first, works offline when installed) */
 
 /* ---------- utils ---------- */
@@ -25,7 +25,7 @@ const PAPERS = ['lines', 'grid', 'dots', 'blank'];
 const PW = 1000, PH = 1414; // page units
 const TONES = [['white', 'White', '#FFFFFF'], ['cream', 'Cream', '#FBF5E6'], ['dark', 'Dark', '#22211F']];
 const TONE = { white: { bg: '#fff', line: '#E2E7EF', dot: '#C9CFD9' }, cream: { bg: '#FBF5E6', line: '#E9DEC4', dot: '#D8CBAE' }, dark: { bg: '#22211F', line: '#3A3936', dot: '#55524C' } };
-const inkOn = (c, tone) => tone === 'dark' && c === '#171614' ? '#F2EFE8' : tone !== 'dark' && c === '#FFFFFF' ? '#171614' : c;
+const inkOn = (c, tone) => tone === 'dark' && c === '#171614' ? '#F2EFE8' : c; // #171614 = 'ink' (adapts to paper); #000000 / #FFFFFF stay as they are
 
 /* ---------- icons ---------- */
 const P = {
@@ -36,8 +36,9 @@ const P = {
   trash: 'M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3', more: 'M5 12h.01M12 12h.01M19 12h.01', gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'
 };
 const DASHBOX = (c = '#171614') => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex:none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="${c}" stroke-width="1.8" stroke-dasharray="3 2.5"/></svg>`;
-const SHAPE_ICON = { rect: 'M4 6h16v12H4z', tri: 'M12 5l8 14H4z', ellipse: 'M12 6c4.4 0 8 2.7 8 6s-3.6 6-8 6-8-2.7-8-6 3.6-6 8-6z', arrow: 'M4 19L19 5M19 5h-7M19 5v7', line: 'M4 19L20 5', dash: 'M4 19l2.5-2.2M9 14.6l2.5-2.2M14 10.2l2.5-2.2M19 5.8l1-.8' };
-const PALETTE = ['#171614', '#6F6B64', '#3B63C4', '#1E88E5', '#0E9F9B', '#15803D', '#65A30D', '#CA8A04', '#EA580C', '#C2410C', '#DC2626', '#DB2777', '#9333EA', '#6D28D9', '#8B5E3C', '#FFFFFF'];
+const SHAPE_NAME = { rect: 'Rectangle', tri: 'Triangle', ellipse: 'Circle', arrow: 'Arrow', line: 'Line', dash: 'Dashed' };
+const SHAPE_ICON = { rect: 'M4 6h16v12H4z', tri: 'M12 5l8 14H4z', ellipse: 'M12 6c4.4 0 8 2.7 8 6s-3.6 6-8 6-8-2.7-8-6 3.6-6 8-6z', arrow: 'M4 19L19 5M19 5h-7M19 5v7', line: 'M4 19L20 5', dash: 'M4 19l2.6-2.3M9.2 14.4l2.6-2.3M14.4 9.8l2.6-2.3M19.4 5.4l.6-.5' };
+const PALETTE = ['#171614', '#000000', '#FFFFFF', '#6F6B64', '#3B63C4', '#1E88E5', '#0E9F9B', '#15803D', '#65A30D', '#CA8A04', '#EA580C', '#C2410C', '#DC2626', '#DB2777', '#9333EA', '#6D28D9', '#8B5E3C', '#FFFFFF'];
 const I = (d, c = '#171614', s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" style="flex:none"><path d="${P[d] || d}" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 /* ---------- storage (IndexedDB) ---------- */
@@ -322,10 +323,11 @@ SCREENS.quiz = () => {
     <div class="serif h2">${quiz.revealed ? 'How did it go?' : c.kind === 'circle' ? 'What’s hidden here?' : 'What did you write here?'}</div>
     <div class="s16 sec">${quiz.revealed ? 'Be honest — it decides when this comes back.' : 'Say it or write it down first, then show the answer.'}</div>
     <div class="qz-crop"><canvas id="qcv"></canvas></div>
+    <div class="pad-wrap"><canvas id="pad"></canvas><div class="pad-hint s15 sec" ${quiz.pad?.length ? 'hidden' : ''}>Write your answer here</div><button class="btn sm muted pad-clear" data-pad-clear ${quiz.pad?.length ? '' : 'hidden'}>Clear</button></div>
   </div>
   <div class="qz-foot">${quiz.revealed ? `<button class="btn muted" data-grade="0">Not yet</button><button class="btn muted" data-grade="0.5">Almost</button><button class="btn ink" data-grade="1">Knew it</button>` : `<button class="btn ink" data-reveal>Show answer</button>`}</div></div>`;
 };
-mount.quiz = async () => { const c = M.cards.find(x => x.id === quiz.list[quiz.i]); const p = await loadPage(c.pageId); const cv = $('#qcv'); if (!cv || !p) return; await drawCrop(cv, p, c, !quiz.revealed); };
+mount.quiz = async () => { quiz.pad = quiz.pad || []; attachPad($('#pad'), quiz.pad, () => { $('.pad-hint')?.setAttribute('hidden', ''); $('[data-pad-clear]')?.removeAttribute('hidden'); }); const c = M.cards.find(x => x.id === quiz.list[quiz.i]); const p = await loadPage(c.pageId); const cv = $('#qcv'); if (!cv || !p) return; await drawCrop(cv, p, c, !quiz.revealed); };
 SCREENS.results = () => {
   const r = quiz.results, ok = r.filter(x => x >= 1).length, miss = r.length - ok;
   const missed = quiz.list.map((id, i) => [id, r[i]]).filter(([, g]) => g < 1).map(([id]) => M.cards.find(c => c.id === id)).filter(Boolean);
@@ -377,6 +379,23 @@ async function drawCrop(cv, p, card, hide) {
   const k = s * dpr, x = (card.x - 6) * k, y = (card.y - top - 6) * k, w = (card.w + 12) * k, h = (card.h + 12) * k;
   ctx.save(); if (hide) { ctx.fillStyle = '#F0DF96'; rr(ctx, x, y, w, h, 10 * dpr); ctx.fill(); } else { ctx.strokeStyle = 'rgba(23,22,20,.35)'; ctx.setLineDash([8 * dpr, 6 * dpr]); ctx.lineWidth = 2 * dpr; rr(ctx, x, y, w, h, 10 * dpr); ctx.stroke(); } ctx.restore();
 }
+const isLineShape = k => ['arrow', 'line', 'dash'].includes(k);
+const toLocal = (x, y, g) => { const dx = x - g.cx, dy = y - g.cy, c = Math.cos(g.rot), s = Math.sin(g.rot); return [dx * c + dy * s, -dx * s + dy * c]; };
+const toGlobal = (lx, ly, g) => { const c = Math.cos(g.rot), s = Math.sin(g.rot); return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c]; };
+function shapePoints(k, g) {
+  if (isLineShape(k)) { const { ax, ay, bx, by } = g; if (k !== 'arrow') return [[ax, ay, .5], [bx, by, .5]]; const ang = Math.atan2(by - ay, bx - ax), L = Math.min(28, Math.hypot(bx - ax, by - ay) * 0.35); return [[ax, ay], [bx, by], [bx - L * Math.cos(ang - 0.45), by - L * Math.sin(ang - 0.45)], [bx, by], [bx - L * Math.cos(ang + 0.45), by - L * Math.sin(ang + 0.45)]].map(q => [q[0], q[1], .5]); }
+  const w = g.w / 2, h = g.h / 2; let loc;
+  if (k === 'rect') loc = [[-w, -h], [w, -h], [w, h], [-w, h], [-w, -h]];
+  else if (k === 'tri') loc = [[0, -h], [w, h], [-w, h], [0, -h]];
+  else { loc = []; for (let i = 0; i <= 64; i++) { const t = i / 64 * Math.PI * 2; loc.push([Math.cos(t) * w, Math.sin(t) * h]); } }
+  return loc.map(([x, y]) => { const q = toGlobal(g.fx ? -x : x, g.fy ? -y : y, g); return [q[0], q[1], .5]; });
+}
+function shapeGeoOf(st) { // shapes drawn before shapes became editable
+  if (st.geo) return st.geo; const p = st.points;
+  if (isLineShape(st.shape)) return (st.geo = { ax: p[0][0], ay: p[0][1], bx: p[1][0], by: p[1][1] });
+  const b = bboxOf(p); return (st.geo = { cx: b.x + b.w / 2, cy: b.y + b.h / 2, w: b.w, h: b.h, rot: 0, fx: false, fy: false });
+}
+function distSeg(px, py, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)); return Math.hypot(px - ax - t * dx, py - ay - t * dy); }
 function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 const bboxOf = pts => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [x, y] of pts) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; } return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }; };
 function resample(pts, step) { const out = [[pts[0][0], pts[0][1]]]; let acc = 0; for (let i = 1; i < pts.length; i++) { let [x0, y0] = [pts[i - 1][0], pts[i - 1][1]]; const [x1, y1] = [pts[i][0], pts[i][1]]; let d = Math.hypot(x1 - x0, y1 - y0); while (acc + d >= step) { const t = (step - acc) / d; x0 += (x1 - x0) * t; y0 += (y1 - y0) * t; out.push([x0, y0]); d = Math.hypot(x1 - x0, y1 - y0); acc = 0; } acc += d; } return out; }
@@ -397,6 +416,31 @@ function traversals(pts) { // how many times the stroke sweeps back and forth al
 }
 function inPoly(pt, poly) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c; } return c; }
 const pathLen = pts => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return l; };
+
+function attachPad(cv, strokes, onInk) { // a simple writing pad (answers in the quiz) — not saved
+  if (!cv) return; const dpr = Math.min(2, devicePixelRatio || 1), r = cv.getBoundingClientRect(); cv.width = r.width * dpr; cv.height = r.height * dpr; const ctx = cv.getContext('2d');
+  const pt = e => { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left), (e.clientY - b.top), e.pointerType === 'pen' ? (e.pressure || .5) : .5]; };
+  const draw = () => { ctx.clearRect(0, 0, cv.width, cv.height); for (const st of strokes) drawStroke(ctx, st, dpr); };
+  let cur = null, pid = null;
+  cv.addEventListener('pointerdown', e => { if (cur) return; e.preventDefault(); pid = e.pointerId; try { cv.setPointerCapture(pid); } catch { } cur = { tool: 'pen', color: '#171614', size: 2.6, points: [pt(e)] }; strokes.push(cur); onInk?.(); draw(); });
+  cv.addEventListener('pointermove', e => { if (!cur || e.pointerId !== pid) return; e.preventDefault(); let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e]; for (const ev of evs) cur.points.push(pt(ev)); draw(); });
+  const end = e => { if (e.pointerId === pid) { cur = null; pid = null; } }; cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  draw();
+}
+
+/* ---------- PDF export ---------- */
+async function buildNotebookPDF(nb) {
+  const ps = writtenPagesOf(nb.id); if (!ps.length) { toast('Nothing to export yet — this notebook is empty'); return null; }
+  if (!window.jspdf) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/jspdf.umd.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+  const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true }), W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  const k = 1.6, cv = document.createElement('canvas'); cv.width = PW * k; cv.height = PH * k;
+  for (let i = 0; i < ps.length; i++) { const pg = await loadPage(ps[i].id); if (!pg) continue; await drawPage(cv.getContext('2d'), pg, k); if (i) doc.addPage(); doc.addImage(cv.toDataURL('image/jpeg', 0.86), 'JPEG', 0, 0, W, H); }
+  const blob = doc.output('blob'); return new File([blob], `${nb.name.replace(/[\\/:*?"<>|]/g, '')}.pdf`, { type: 'application/pdf' });
+}
+async function sharePDF(file) {
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: file.name }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
 
 /* ---------- editor ---------- */
 class Editor {
@@ -440,9 +484,9 @@ class Editor {
   }
   addSlot(id) {
     const el = document.createElement('div'); el.className = 'page'; el.dataset.slot = id;
-    el.innerHTML = `<canvas></canvas><canvas></canvas><div class="over" style="position:absolute;inset:0"></div>`;
+    el.innerHTML = `<canvas></canvas><canvas></canvas><div class="over" style="position:absolute;inset:0"></div><canvas class="scr"></canvas>`;
     this.inner.appendChild(el);
-    const [base, live] = el.querySelectorAll('canvas'); const s = { id, el, base, live, over: el.querySelector('.over'), page: null, ready: false }; el.style.background = (TONE[this.nb?.tone] || TONE.white).bg;
+    const [base, live, scr] = el.querySelectorAll('canvas'); const s = { id, el, base, live, scr, over: el.querySelector('.over'), page: null, ready: false }; el.style.background = (TONE[this.nb?.tone] || TONE.white).bg;
     this.slots.push(s); if (this.w) this.sizeSlot(s); return s;
   }
   async ensureTrailing() { // always keep one empty page at the end
@@ -466,12 +510,12 @@ class Editor {
     $('[data-ed="prev"]').style.opacity = idx > 0 ? 1 : .3; $('[data-ed="next"]').style.opacity = idx < n - 1 ? 1 : .3;
     const on = k => this.tool === k ? 'on' : '', t = (k, ic, title) => `<button class="icon-btn ${on(k)}" data-tool="${k}" title="${title}">${I(ic, this.tool === k ? '#fff' : '#171614')}</button>`;
     const cols = M.profile.colors || (M.profile.colors = ['#171614', '#3B63C4', '#C2410C', '#15803D']), tone = this.nb.tone || 'white';
-    const shapeBtn = `<div class="pop-wrap"><button class="icon-btn ${on('shape')}" data-ed="shapes" title="Shapes">${this.tool === 'shape' ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="${SHAPE_ICON[this.shape]}" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${this.shape === 'dash' ? '' : ''}/></svg>` : I('shapes')}</button>${this.shapesOpen ? `<div class="pop pop-row">${Object.keys(SHAPE_ICON).map(k => `<button class="icon-btn ${this.tool === 'shape' && this.shape === k ? 'on' : ''}" data-shape="${k}" title="${k}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="${SHAPE_ICON[k]}" stroke="${this.tool === 'shape' && this.shape === k ? '#fff' : '#171614'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`).join('')}</div>` : ''}</div>`;
+    const shapeBtn = `<div class="pop-wrap"><button class="icon-btn ${this.tool === 'shape' ? 'soft-on' : ''}" data-ed="shapes" title="Shapes">${this.tool === 'shape' ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="${SHAPE_ICON[this.shape]}" stroke="#171614" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>` : I('shapes')}</button>${this.shapesOpen ? `<div class="pop shapes-pop">${Object.entries(SHAPE_NAME).map(([k, label]) => `<button class="shape-tile ${this.tool === 'shape' && this.shape === k ? 'on' : ''}" data-shape="${k}"><svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="${SHAPE_ICON[k]}" stroke="#171614" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${k === 'dash' ? '' : ''}/></svg><span>${label}</span></button>`).join('')}</div>` : ''}</div>`;
     $('#ed-tools').innerHTML = `
       <div class="tool-group">${t('pen', 'pen', 'Pen')}${t('eraser', 'eraser', 'Eraser')}</div>
       <div class="tool-group quiz-group" title="Make a question">${t('hl', 'hl', 'Marker — whatever you mark goes into the quiz')}<button class="icon-btn ${on('q')}" data-tool="q" title="Dashed box — hide this in the quiz">${DASHBOX(this.tool === 'q' ? '#fff' : '#171614')}</button></div>
       <div class="tool-group">${shapeBtn}${t('move', 'move', 'Move pictures')}</div>
-      <div class="pop-wrap"><div class="tool-group">${cols.map((c, i) => `<button class="sw ${this.color === c ? 'on' : ''}" data-color="${c}" data-slot="${i}"><i style="background:${inkOn(c, tone)};${c === '#FFFFFF' || (tone === 'dark' && c === '#171614') ? 'box-shadow:inset 0 0 0 1px #ccc' : ''}"></i></button>`).join('')}<button class="icon-btn" data-ed="size" title="Line size"><span style="width:${{ s: 6, m: 10, l: 15 }[this.size]}px;height:${{ s: 6, m: 10, l: 15 }[this.size]}px;border-radius:50%;background:#171614"></span></button></div>${this.paletteFor !== undefined && this.paletteFor !== null ? `<div class="pop"><div class="s13 b6 sec" style="padding:4px 6px 8px">Pick a colour for this slot</div><div class="palette">${PALETTE.map(c => `<button data-pal="${c}" style="background:${c}" class="${cols[this.paletteFor] === c ? 'on' : ''}"></button>`).join('')}</div></div>` : ''}</div>
+      <div class="pop-wrap"><div class="tool-group">${cols.map((c, i) => `<button class="sw ${this.color === c ? 'on' : ''}" data-color="${c}" data-slot="${i}"><i style="background:${inkOn(c, tone)};${c === '#FFFFFF' || (tone === 'dark' && c === '#171614') ? 'box-shadow:inset 0 0 0 1px #bbb' : ''}"></i>${this.color === c ? '<b class="caret"></b>' : ''}</button>`).join('')}<button class="icon-btn" data-ed="size" title="Line size"><span style="width:${{ s: 6, m: 10, l: 15 }[this.size]}px;height:${{ s: 6, m: 10, l: 15 }[this.size]}px;border-radius:50%;background:#171614"></span></button></div>${this.paletteFor !== undefined && this.paletteFor !== null ? `<div class="pop"><div class="s13 b6 sec" style="padding:4px 6px 8px">Swap this colour for</div><div class="palette">${PALETTE.map(c => `<button data-pal="${c}" style="background:${c}" class="${cols[this.paletteFor] === c ? 'on' : ''}"></button>`).join('')}</div></div>` : ''}</div>
       <div class="pop-wrap"><button class="tool-group paper-btn" data-ed="paper">${this.page.paper[0].toUpperCase() + this.page.paper.slice(1)} ${I('chev', '#6F6B64', 18)}</button>${this.paperOpen ? `<div class="pop paper-pop"><div class="s13 b6 sec">Paper</div><div class="seg">${PAPERS.map(p => `<button class="${this.page.paper === p ? 'on' : ''}" data-paper="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div><div class="s13 b6 sec" style="margin-top:6px">Paper colour</div><div class="row g8">${TONES.map(([k, l, bg]) => `<button class="tone ${tone === k ? 'on' : ''}" data-tone="${k}"><span style="background:${bg}"></span>${l}</button>`).join('')}</div><div class="s12 sec" style="margin-top:4px">Colour applies to the whole notebook. Change it later from the notebook’s menu too.</div></div>` : ''}</div>
       ${(this.zoom || 1) !== 1 ? `<button class="tool-group paper-btn" data-ed="fit">${Math.round(this.zoom * 100)}%</button>` : ''}<div class="tool-group"><button class="icon-btn" data-ed="photo" title="Insert photo">${I('photo')}</button>${this.sel ? `<button class="icon-btn" data-ed="delimg" title="Delete picture">${I('trash')}</button>` : ''}<button class="icon-btn" data-ed="undo" title="Undo">${I('undo')}</button><button class="icon-btn" data-ed="redo" title="Redo">${I('redo')}</button></div>`;
     for (const pop of $$('#ed-tools .pop')) { const r = pop.getBoundingClientRect(), over = r.right - (innerWidth - 8); if (over > 0) pop.style.left = `${-over}px`; const r2 = pop.getBoundingClientRect(); if (r2.left < 8) pop.style.left = `${parseFloat(pop.style.left || 0) + 8 - r2.left}px`; }
@@ -489,10 +533,11 @@ class Editor {
   }
   async prepare(s) {
     s.ready = true; if (!s.page) s.page = await loadPage(s.id); if (!s.page) return; (s.page.images || []).forEach(im => this.clampImg(im)); const meta = M.pages.find(x => x.id === s.id); if (meta && meta.n === undefined) { meta.n = s.page.strokes.length + (s.page.images || []).length; saveMeta(); }
-    for (const c of [s.base, s.live]) { c.width = Math.round(this.w * this.dpr); c.height = Math.round(this.h * this.dpr); }
+    for (const c of [s.base, s.live, s.scr]) { c.width = Math.round(this.w * this.dpr); c.height = Math.round(this.h * this.dpr); }
+    this.drawScratch(s);
     await this.redraw(s);
   }
-  release(s) { s.ready = false; for (const c of [s.base, s.live]) { c.width = 0; c.height = 0; } }
+  release(s) { s.ready = false; for (const c of [s.base, s.live, s.scr]) { c.width = 0; c.height = 0; } }
   updateVisible() {
     if (!this.h) return; const vh = this.scroller.clientHeight, top = this.scrollY - vh, bottom = this.scrollY + 2 * vh;
     this.slots.forEach((s, i) => { const t = this.slotTop(i), near = t + this.h > top && t < bottom; if (near && !s.ready) this.prepare(s); else if (!near && s.ready) this.release(s); });
@@ -506,6 +551,7 @@ class Editor {
       : `<button class="qb" data-card="${c.id}" style="left:${(PW - 26) * s}px;top:${this.qTop(c, cs, s)}px">Q</button>`).join('');
     if (this.asking) { const c = cs.find(x => x.id === this.asking); if (c) { const left = Math.min((c.x + c.w + 16) * s, this.w - 240), top = Math.max(0, (c.y - 10) * s); html += `<div class="ask" style="left:${left}px;top:${top}px"><div class="s15 b7">Did you remember it?</div><div class="row g8"><button class="btn muted sm" data-tm="0">Not yet</button><button class="btn ink sm" data-tm="1">Knew it</button></div><div class="s12 sec">“Not yet” brings it back soon.</div></div>`; } }
     if (active && this.sel) { const im = (sl.page.images || []).find(i => i.id === this.sel); if (im) html += `<div class="img-sel" style="left:${im.x * s}px;top:${im.y * s}px;width:${im.w * s}px;height:${im.h * s}px"><i></i></div>`; }
+    if (active && this.shapeSel && ['move', 'shape'].includes(this.tool)) html += this.shapeSelHtml(s);
     if (active && this.drag && !this.drag.resize) { const im = this.drag.im; html += `<img src="${im.src}" style="position:absolute;left:${im.x * s}px;top:${im.y * s}px;width:${im.w * s}px;height:${im.h * s}px;opacity:.85;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.18);border-radius:4px">`; }
     if (active && this.box) { const b = this.box; html += `<div class="sel-box" style="left:${Math.min(b.x0, b.x1) * s}px;top:${Math.min(b.y0, b.y1) * s}px;width:${Math.abs(b.x1 - b.x0) * s}px;height:${Math.abs(b.y1 - b.y0) * s}px"></div>`; }
     sl.over.innerHTML = html;
@@ -540,22 +586,31 @@ class Editor {
   clampImg(im) { if (im.w > PW) { const k = PW / im.w; im.w *= k; im.h *= k; } if (im.h > PH) { const k = PH / im.h; im.w *= k; im.h *= k; } im.x = Math.min(Math.max(0, im.x), PW - im.w); im.y = Math.min(Math.max(0, im.y), PH - im.h); }
   isDrawPointer(e) { return e.pointerType === 'pen' || e.pointerType === 'mouse' || (e.pointerType === 'touch' && M.profile.fingerDraw); }
   async down(e) {
-    this.stopFling(); if (e.target.closest('button,.ask')) return;
-    const hit = e.pointerType === 'touch' && !this.touches.size ? this.imgHit(e) : null;
+    this.stopFling(); if (e.target.closest('button,.ask,.sh-bar') && !(this.testing && e.target.closest('.qcover') && e.pointerType !== 'touch')) return;
+    const handle = e.target.closest?.('[data-h]'), onActive = e.target.closest?.('.page') === this.pageEl;
+    const shapeTouch = e.pointerType === 'touch' && !this.touches.size && ['move', 'shape'].includes(this.tool) && this.shapeSel && (handle || (onActive && this.shapeAt(this.pt(e), false) === this.shapeSel));
+    const hit = e.pointerType === 'touch' && !this.touches.size && !shapeTouch ? this.imgHit(e) : null;
     const fingerMove = hit && (this.tool === 'move' || hit.im.id === this.sel);
-    if (e.pointerType === 'touch' && !M.profile.fingerDraw && !fingerMove) { // fingers: scroll + two-finger tap undo
+    if (e.pointerType === 'touch' && !M.profile.fingerDraw && !fingerMove && !shapeTouch) { // fingers: scroll + two-finger tap undo
       this.touches.set(e.pointerId, { y: e.clientY, x: e.clientX, t: Date.now(), moved: 0, hit, single: !this.touches.size, lt: performance.now(), vx: 0, vy: 0 });
       if (this.touches.size === 2) { this.twoStart = Date.now(); const [p1, p2] = [...this.touches.values()], r = this.scroller.getBoundingClientRect(); this.pinch = { d0: Math.hypot(p1.x - p2.x, p1.y - p2.y), c0: [(p1.x + p2.x) / 2 - r.left, (p1.y + p2.y) / 2 - r.top], z0: this.zoom || 1, sx: this.scrollX || 0, sy: this.scrollY, k: 1, c: null, W: this.inner.scrollWidth, H: this.inner.scrollHeight }; }
       e.preventDefault(); return;
     }
     if (this.paperOpen || this.shapesOpen || (this.paletteFor !== null && this.paletteFor !== undefined)) { this.paperOpen = false; this.shapesOpen = false; this.paletteFor = null; this.renderTools(); }
-    if ((!this.isDrawPointer(e) && !fingerMove) || this.testing) return;
+    if ((!this.isDrawPointer(e) && !fingerMove && !shapeTouch)) return;
     if (this.penActive && this.penActive !== e.pointerId) return;
     const el = e.target.closest('.page'); if (!el) return; const slot = this.slots.find(s => s.el === el); if (!slot?.page) return;
     if (slot !== this.slot) { this.slot = slot; this.page = slot.page; this.pageId = slot.id; this.pageEl = slot.el; this.base = slot.base; this.live = slot.live; this.over = slot.over; ui.pageId = slot.id; if (!fingerMove) this.sel = null; this.renderTools(); }
     e.preventDefault(); try { this.scroller.setPointerCapture(e.pointerId); } catch { } this.penActive = e.pointerId;
     const p = this.pt(e); const tool = fingerMove ? 'move' : (e.buttons & 32) ? 'eraser' : this.tool;
     this.curTool = tool;
+    if (this.testing) { this.curTool = 'scratch'; this.scratchMoved = 0; this.scratchCard = e.target.closest('.qcover')?.dataset.revealCard || null; this.cur = { id: uid(), tool: 'pen', color: this.nb.tone === 'dark' ? '#F2EFE8' : '#C2410C', size: 3, points: [p] }; return; }
+    if (tool === 'move' || tool === 'shape') {
+      if (handle && this.shapeSel) { this.curTool = 'shapeedit'; this.startShapeEdit(this.shapeSel, handle.dataset.h, p); return; }
+      const hitShape = shapeTouch && !handle ? this.shapeSel : this.shapeAt(p, tool === 'shape');
+      if (hitShape) { this.shapeSel = hitShape; this.sel = null; this.curTool = 'shapeedit'; this.startShapeEdit(hitShape, 'move', p); this.renderTools(); this.renderOverlay(); return; }
+      if (this.shapeSel) { this.shapeSel = null; this.renderOverlay(); }
+    }
     if (tool === 'pen' || tool === 'hl') { const size = tool === 'hl' ? { s: 18, m: 26, l: 36 }[this.size] : { s: 2.2, m: 3.2, l: 5 }[this.size]; this.cur = { id: uid(), tool, color: tool === 'hl' ? '#F0DF96' : this.color, size, points: [p] }; }
     if (tool === 'eraser') { this.erased = []; this.eraseAt(p); }
     if (tool === 'q') this.box = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
@@ -572,6 +627,8 @@ class Editor {
     let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e]; const tool = this.curTool;
     if (this.cur) { for (const ev of evs) this.cur.points.push(this.pt(ev)); this.drawLive(); }
     if (tool === 'eraser') for (const ev of evs) this.eraseAt(this.pt(ev));
+    if (tool === 'shapeedit' && this.shapeEdit) { this.moveShapeEdit(this.pt(e)); return; }
+    if (tool === 'scratch' && this.cur) { for (const ev of evs) this.cur.points.push(this.pt(ev)); this.scratchMoved = pathLen(this.cur.points); this.drawScratch(); return; }
     if (tool === 'shape' && this.shp) { this.shp.b = this.pt(e); const ctx = this.live.getContext('2d'); ctx.clearRect(0, 0, this.live.width, this.live.height); drawStroke(ctx, this.shapeStroke(), this.s * this.dpr, this.nb.tone); }
     if (tool === 'q' && this.box) { const p = this.pt(e); this.box.x1 = p[0]; this.box.y1 = p[1]; this.renderOverlay(); }
     if (tool === 'move' && this.drag) { const p = this.pt(e), d = this.drag, dx = p[0] - d.p[0], dy = p[1] - d.p[1]; if (d.resize) { const r = d.oh / d.ow; d.im.w = Math.min(PW - d.im.x, Math.max(60, d.ow + dx)); d.im.h = d.im.w * r; this.clampImg(d.im); } else { d.im.x = Math.min(Math.max(0, d.ox + dx), PW - d.im.w); d.im.y = d.oy + dy; } this.slot.el.style.zIndex = 5; this.renderOverlay(); if (d.resize) this.redraw(); }
@@ -588,9 +645,11 @@ class Editor {
       this.touches.delete(e.pointerId); if (!this.touches.size) { this.twoStart = 0; this.pinch = null; } return;
     }
     if (e.pointerId !== this.penActive) return; this.penActive = null; const tool = this.curTool;
+    if (tool === 'shapeedit') { this.endShapeEdit(); return; }
+    if (tool === 'scratch') { const st = this.cur; this.cur = null; if (st && this.scratchMoved > 6) { (this.slot.scratch = this.slot.scratch || []).push(st); this.noClickUntil = Date.now() + 400; } else if (this.scratchCard) { this.revealed[this.scratchCard] = true; this.asking = this.scratchCard; this.noClickUntil = Date.now() + 400; this.renderAllOverlays(); } this.drawScratch(); return; }
     if (this.cur) { const st = this.cur; this.cur = null; this.live.getContext('2d').clearRect(0, 0, this.live.width, this.live.height); if (st.points.length > 1 || st.tool === 'pen') { if (st.tool === 'pen' && this.scratchOut(st)) { this.redraw(); this.save(); return; } this.page.strokes.push(st); this.pushUndo({ type: 'add', stroke: st }); try { if (st.tool === 'pen') this.detectMark(st); else this.markFromHighlighter(st); } catch (err) { console.error(err); } this.redraw(); this.save(); } }
     if (tool === 'eraser' && this.erased?.length) { const cards = this.pruneCards(); this.pushUndo({ type: 'erase', strokes: this.erased, cards }); this.erased = null; this.save(); }
-    if (tool === 'shape' && this.shp) { const st = this.shapeStroke(); this.shp = null; this.live.getContext('2d').clearRect(0, 0, this.live.width, this.live.height); const bb = bboxOf(st.points); if (bb.w + bb.h > 12) { this.page.strokes.push(st); this.pushUndo({ type: 'add', stroke: st }); this.redraw(); this.save(); } }
+    if (tool === 'shape' && this.shp) { const st = this.shapeStroke(); this.shp = null; this.live.getContext('2d').clearRect(0, 0, this.live.width, this.live.height); const bb = bboxOf(st.points); if (bb.w + bb.h > 12) { this.page.strokes.push(st); this.pushUndo({ type: 'add', stroke: st }); this.shapeSel = st; this.redraw(); this.save(); if (!M.profile.shapeTip) { M.profile.shapeTip = true; saveMeta(); toast('Drag the corners to resize, the round handle to rotate'); } } }
     if (tool === 'q' && this.box) { const b = this.box; this.box = null; const x = Math.min(b.x0, b.x1), y = Math.min(b.y0, b.y1), w = Math.abs(b.x1 - b.x0), h = Math.abs(b.y1 - b.y0); if (w > 20 && h > 14) this.addCard({ x, y, w, h }, 'box'); else this.renderOverlay(); }
     if (tool === 'move' && this.drag) { const d = this.drag; this.drag = null; this.slot.el.style.zIndex = '';
       const i = this.slots.indexOf(this.slot), cy = d.im.y + d.im.h / 2, step = PH + this.gap / this.s;
@@ -602,7 +661,13 @@ class Editor {
     if (meta) { meta.n = p.strokes.length + (p.images || []).length; if (wasEmpty && !empty) { meta.dateKey = dayKey(); meta.createdAt = p.createdAt = Math.max(Date.now(), ...M.pages.filter(x => x.notebookId === p.notebookId && x.id !== p.id).map(x => x.createdAt + 1)); } }
     savePage(p); if (slot === this.slots[this.slots.length - 1] && !empty) this.ensureTrailing().then(() => this.renderTools()); else this.renderTools();
   }
-  shapeStroke() {
+  shapeGeo() { // geometry of the shape being drawn
+    const [ax, ay] = this.shp.a, [bx, by] = this.shp.b, k = this.shape || 'rect';
+    if (['arrow', 'line', 'dash'].includes(k)) return { ax, ay, bx, by };
+    return { cx: (ax + bx) / 2, cy: (ay + by) / 2, w: Math.abs(bx - ax), h: Math.abs(by - ay), rot: 0, fx: false, fy: false };
+  }
+  shapeStroke() { const k = this.shape || 'rect', geo = this.shapeGeo(); return { id: uid(), tool: 'pen', shape: k, dash: k === 'dash', color: this.color, size: { s: 2.2, m: 3.2, l: 5 }[this.size], geo, points: shapePoints(k, geo) }; }
+  shapeStrokeOld() {
     const [ax, ay] = this.shp.a, [bx, by] = this.shp.b, k = this.shape || 'rect', x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by); let pts;
     if (k === 'rect') pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
     else if (k === 'tri') pts = [[(x0 + x1) / 2, y0], [x1, y1], [x0, y1], [(x0 + x1) / 2, y0]];
@@ -611,6 +676,43 @@ class Editor {
     else pts = [[ax, ay], [bx, by]];
     return { id: uid(), tool: 'pen', shape: k, dash: k === 'dash', color: this.color, size: { s: 2.2, m: 3.2, l: 5 }[this.size], points: pts.map(q => [q[0], q[1], .5]) };
   }
+  shapeAt(p, outlineOnly) { // with the Shapes tool only the outline picks a shape, so you can still draw a shape inside another
+    const list = this.page.strokes.filter(x => x.shape).reverse();
+    return list.find(st => { const g = shapeGeoOf(st); if (isLineShape(st.shape)) return distSeg(p[0], p[1], g.ax, g.ay, g.bx, g.by) < 16;
+      if (outlineOnly) { const q = st.points; for (let i = 1; i < q.length; i++) if (distSeg(p[0], p[1], q[i - 1][0], q[i - 1][1], q[i][0], q[i][1]) < 14) return true; return false; }
+      const [lx, ly] = toLocal(p[0], p[1], g); return Math.abs(lx) <= g.w / 2 + 14 && Math.abs(ly) <= g.h / 2 + 14; });
+  }
+  shapeSelHtml(s) {
+    const st = this.shapeSel; if (!st || !this.page.strokes.includes(st)) { this.shapeSel = null; return ''; } const g = shapeGeoOf(st), H = (k, x, y) => `<div class="sh-h" data-h="${k}" style="left:${x * s}px;top:${y * s}px"></div>`;
+    let html = '', top;
+    if (isLineShape(st.shape)) { html += H('a', g.ax, g.ay) + H('b', g.bx, g.by); top = Math.min(g.ay, g.by); html += `<div class="sh-bar" style="left:${(g.ax + g.bx) / 2 * s}px;top:${top * s - 64}px">${st.shape === 'arrow' ? '<button data-sh="swap">Turn around</button>' : ''}<button data-sh="del">Delete</button></div>`; }
+    else {
+      html += `<div class="sh-box" style="left:${g.cx * s}px;top:${g.cy * s}px;width:${g.w * s + 16}px;height:${g.h * s + 16}px;transform:translate(-50%,-50%) rotate(${g.rot}rad)"><div class="sh-stem"></div></div>`;
+      for (const [k, sx, sy] of [['nw', -1, -1], ['ne', 1, -1], ['sw', -1, 1], ['se', 1, 1]]) { const q = toGlobal(sx * (g.w / 2 + 8 / s), sy * (g.h / 2 + 8 / s), g); html += H(k, q[0], q[1]); }
+      const r = toGlobal(0, -(g.h / 2 + 44 / s), g); html += `<div class="sh-h rot" data-h="rot" style="left:${r[0] * s}px;top:${r[1] * s}px">${I('M20 11a8 8 0 1 1-2.3-5.6M20 4v5h-5', '#171614', 16)}</div>`;
+      const b = bboxOf(st.points); top = b.y; html += `<div class="sh-bar" style="left:${g.cx * s}px;top:${Math.max(4, top * s - 112)}px"><button data-sh="fx">Flip ↔</button><button data-sh="fy">Flip ↕</button><button data-sh="del">Delete</button></div>`;
+    }
+    return html;
+  }
+  startShapeEdit(st, mode, p) { const g = shapeGeoOf(st); this.shapeEdit = { st, mode, p0: p, g0: { ...g }, before: { geo: { ...g }, points: st.points } }; }
+  moveShapeEdit(p) {
+    const E = this.shapeEdit, st = E.st, g0 = E.g0, k = st.shape; let g = { ...g0 };
+    if (E.mode === 'move') { const dx = p[0] - E.p0[0], dy = p[1] - E.p0[1]; if (isLineShape(k)) g = { ax: g0.ax + dx, ay: g0.ay + dy, bx: g0.bx + dx, by: g0.by + dy }; else { g.cx = g0.cx + dx; g.cy = g0.cy + dy; } }
+    else if (E.mode === 'a' || E.mode === 'b') { g[E.mode + 'x'] = p[0]; g[E.mode + 'y'] = p[1]; }
+    else if (E.mode === 'rot') { let a = g0.rot + Math.atan2(p[1] - g0.cy, p[0] - g0.cx) - Math.atan2(E.p0[1] - g0.cy, E.p0[0] - g0.cx); const snap = Math.round(a / (Math.PI / 12)) * (Math.PI / 12); if (Math.abs(a - snap) < 0.06) a = snap; g.rot = a; }
+    else { const sx = E.mode.includes('e') ? 1 : -1, sy = E.mode.includes('s') ? 1 : -1, ox = -sx * g0.w / 2, oy = -sy * g0.h / 2, [lx, ly] = toLocal(p[0], p[1], g0);
+      g.w = Math.max(12, (lx - ox) * sx); g.h = Math.max(12, (ly - oy) * sy); const c = toGlobal(ox + sx * g.w / 2, oy + sy * g.h / 2, g0); g.cx = c[0]; g.cy = c[1]; }
+    st.geo = g; st.points = shapePoints(k, g); this.redraw();
+  }
+  endShapeEdit() { const E = this.shapeEdit; this.shapeEdit = null; if (!E) return; const st = E.st; if (st.points !== E.before.points) { this.pushUndo({ type: 'shapeedit', stroke: st, before: E.before, after: { geo: { ...st.geo }, points: st.points } }); this.save(); } this.renderOverlay(); }
+  shapeAction(k) {
+    const st = this.shapeSel; if (!st) return; const before = { geo: { ...shapeGeoOf(st) }, points: st.points };
+    if (k === 'del') { this.page.strokes = this.page.strokes.filter(x => x !== st); this.pushUndo({ type: 'erase', strokes: [st], cards: [] }); this.shapeSel = null; this.redraw(); this.save(); return; }
+    const g = { ...st.geo }; if (k === 'fx') g.fx = !g.fx; if (k === 'fy') g.fy = !g.fy; if (k === 'swap') Object.assign(g, { ax: g.bx, ay: g.by, bx: g.ax, by: g.ay });
+    st.geo = g; st.points = shapePoints(st.shape, g); this.pushUndo({ type: 'shapeedit', stroke: st, before, after: { geo: { ...g }, points: st.points } }); this.redraw(); this.save();
+  }
+  drawScratch(sl = this.slot) { if (!sl?.scr?.width) return; const ctx = sl.scr.getContext('2d'); ctx.clearRect(0, 0, sl.scr.width, sl.scr.height); for (const st of [...(sl.scratch || []), ...(sl === this.slot && this.curTool === 'scratch' && this.cur ? [this.cur] : [])]) drawStroke(ctx, st, this.s * this.dpr); }
+  clearScratch() { for (const sl of this.slots) { sl.scratch = []; this.drawScratch(sl); } }
   styleSlots() { const bg = (TONE[this.nb.tone] || TONE.white).bg; for (const sl of this.slots) sl.el.style.background = bg; }
   async openPages() {
     this.closePages(); const cur = this.slots.indexOf(this.slot), ov = document.createElement('div'); ov.className = 'pages-ov';
@@ -624,8 +726,8 @@ class Editor {
   eraseAt(p) { const r = 14; const before = this.page.strokes.length; const keep = []; for (const st of this.page.strokes) { if (st.points.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < r + st.size / 2)) this.erased.push(st); else keep.push(st); } if (keep.length !== before) { this.page.strokes = keep; this.redraw(); } }
   pushUndo(a) { a.slot = this.slot; this.undo.push(a); if (this.undo.length > 100) this.undo.shift(); this.redo = []; }
   applyOn(a, f) { const prev = this.slot; this.slot = a.slot; this.page = a.slot.page; this.pageId = a.slot.id; f(); saveMeta(); this.save(a.slot); this.redraw(a.slot); this.slot = prev; this.page = prev.page; this.pageId = prev.id; this.renderTools(); }
-  doUndo() { const a = this.undo.pop(); if (!a) return; if (a.type === 'imgxfer') { this.xfer(a, true); this.redo.push(a); return; } this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes = pg.strokes.filter(s => s !== a.stroke); if (a.card) M.cards = M.cards.filter(c => c.id !== a.card); } if (a.type === 'erase') { pg.strokes.push(...a.strokes); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'card') M.cards = M.cards.filter(c => c.id !== a.card.id); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.added.includes(s)).concat(a.removed); if (a.cards) M.cards.push(...a.cards); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images = pg.images.filter(i => i !== a.im); if (a.type === 'imgdel') { pg.images.push(a.im); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'imgmove') Object.assign(a.im, a.before); }); this.sel = null; this.redo.push(a); }
-  doRedo() { const a = this.redo.pop(); if (!a) return; if (a.type === 'imgxfer') { this.xfer(a, false); this.undo.push(a); return; } this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes.push(a.stroke); if (a.cardObj) M.cards.push(a.cardObj); } if (a.type === 'erase') { pg.strokes = pg.strokes.filter(s => !a.strokes.includes(s)); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } if (a.type === 'card') M.cards.push(a.card); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.removed.includes(s)).concat(a.added); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images.push(a.im); if (a.type === 'imgdel') { pg.images = pg.images.filter(i => i !== a.im); if (a.cards) M.cards = M.cards.filter(x => !a.cards.includes(x)); } if (a.type === 'imgmove') Object.assign(a.im, a.after); }); this.sel = null; this.undo.push(a); }
+  doUndo() { const a = this.undo.pop(); if (!a) return; if (a.type === 'imgxfer') { this.xfer(a, true); this.redo.push(a); return; } this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes = pg.strokes.filter(s => s !== a.stroke); if (a.card) M.cards = M.cards.filter(c => c.id !== a.card); } if (a.type === 'erase') { pg.strokes.push(...a.strokes); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'card') M.cards = M.cards.filter(c => c.id !== a.card.id); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.added.includes(s)).concat(a.removed); if (a.cards) M.cards.push(...a.cards); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images = pg.images.filter(i => i !== a.im); if (a.type === 'shapeedit') Object.assign(a.stroke, { geo: { ...a.before.geo }, points: a.before.points }); if (a.type === 'imgdel') { pg.images.push(a.im); if (a.cards) M.cards.push(...a.cards); } if (a.type === 'imgmove') Object.assign(a.im, a.before); }); this.sel = null; this.redo.push(a); }
+  doRedo() { const a = this.redo.pop(); if (!a) return; if (a.type === 'imgxfer') { this.xfer(a, false); this.undo.push(a); return; } this.applyOn(a, () => { const pg = a.slot.page; if (a.type === 'add') { pg.strokes.push(a.stroke); if (a.cardObj) M.cards.push(a.cardObj); } if (a.type === 'erase') { pg.strokes = pg.strokes.filter(s => !a.strokes.includes(s)); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } if (a.type === 'card') M.cards.push(a.card); if (a.type === 'replace') { pg.strokes = pg.strokes.filter(s => !a.removed.includes(s)).concat(a.added); if (a.cards) M.cards = M.cards.filter(c => !a.cards.includes(c)); } pg.images = pg.images || []; if (a.type === 'imgadd') pg.images.push(a.im); if (a.type === 'shapeedit') Object.assign(a.stroke, { geo: { ...a.after.geo }, points: a.after.points }); if (a.type === 'imgdel') { pg.images = pg.images.filter(i => i !== a.im); if (a.cards) M.cards = M.cards.filter(x => !a.cards.includes(x)); } if (a.type === 'imgmove') Object.assign(a.im, a.after); }); this.sel = null; this.undo.push(a); }
   // Scratch-out: a deliberate back-and-forth scribble over ink erases it. Ordinary writing never triggers it.
   scratchOut(st) {
     const raw = st.points; if (raw.length < 8) return false; const b = bboxOf(raw); const t = traversals(raw);
@@ -725,13 +827,14 @@ class Editor {
     this.tool = 'move'; this.sel = im.id; this.save(); this.renderTools(); this.redraw(); toast('Picture added — drag to move, corner to resize'); $('#ed-file').value = '';
   }
   async click(e) {
-    const b = e.target.closest('[data-ed],[data-tool],[data-color],[data-size],[data-paper],[data-tone],[data-shape],[data-pal],[data-card],[data-reveal-card],[data-tm],[data-goto]'); if (!b) return; const d = b.dataset;
-    if (d.tool) { this.tool = d.tool; this.shapesOpen = false; this.paletteFor = null; if (d.tool !== 'move') this.sel = null; this.renderTools(); this.renderOverlay(); if (d.tool === 'q' && !M.profile.boxTip) { M.profile.boxTip = true; saveMeta(); toast('Drag a box around anything — it’s hidden in the quiz'); } return; }
-    if (d.shape) { this.tool = 'shape'; this.shape = d.shape; this.shapesOpen = false; return this.renderTools(); }
+    if (this.noClickUntil && Date.now() < this.noClickUntil) return; const b = e.target.closest('[data-sh],[data-ed],[data-tool],[data-color],[data-size],[data-paper],[data-tone],[data-shape],[data-pal],[data-card],[data-reveal-card],[data-tm],[data-goto]'); if (!b) return; const d = b.dataset;
+    if (d.tool) { if (d.tool !== 'move' && d.tool !== 'shape') this.shapeSel = null; this.tool = d.tool; this.shapesOpen = false; this.paletteFor = null; if (d.tool !== 'move') this.sel = null; this.renderTools(); this.renderOverlay(); if (d.tool === 'q' && !M.profile.boxTip) { M.profile.boxTip = true; saveMeta(); toast('Drag a box around anything — it’s hidden in the quiz'); } return; }
+    if (d.shape) { this.tool = 'shape'; this.shape = d.shape; this.shapesOpen = false; this.shapeSel = null; this.renderOverlay(); return this.renderTools(); }
     if (d.pal) { const cols = M.profile.colors; cols[this.paletteFor] = d.pal; this.color = d.pal; this.paletteFor = null; saveMeta(); if (!['pen', 'shape'].includes(this.tool)) this.tool = 'pen'; return this.renderTools(); }
-    if (d.color) { const now = Date.now(), slot = +d.slot; if (this.lastSw && this.lastSw.slot === slot && now - this.lastSw.t < 380) { this.lastSw = null; this.paletteFor = slot; return this.renderTools(); } this.lastSw = { slot, t: now }; this.paletteFor = null; this.color = d.color; if (!['pen', 'shape'].includes(this.tool)) this.tool = 'pen'; if (!M.profile.palTip) { M.profile.palTip = true; saveMeta(); toast('Double-tap a colour to swap it for another'); } return this.renderTools(); }
+    if (d.color) { const now = Date.now(), slot = +d.slot; if ((this.lastSw && this.lastSw.slot === slot && now - this.lastSw.t < 380) || (this.color === d.color && M.profile.colors[slot] === d.color && (this.tool === 'pen' || this.tool === 'shape'))) { this.lastSw = null; this.paletteFor = slot; return this.renderTools(); } this.lastSw = { slot, t: now }; this.paletteFor = null; this.color = d.color; if (!['pen', 'shape'].includes(this.tool)) this.tool = 'pen'; if (!M.profile.palTip2) { M.profile.palTip2 = true; saveMeta(); toast('Tap the chosen colour again to pick a different one'); } return this.renderTools(); }
     if (d.tone) { this.nb.tone = d.tone; saveMeta(); for (const sl of this.slots) if (sl.ready) this.redraw(sl); this.styleSlots(); return this.renderTools(); }
     if (d.goto !== undefined) { this.closePages(); return this.scrollToSlot(+d.goto); }
+    if (d.sh) return this.shapeAction(d.sh);
     if (d.paper) { this.page.paper = d.paper; this.nb.paper = d.paper; const last = this.slots[this.slots.length - 1]; if (last.page && this.isEmpty(last.page)) { last.page.paper = d.paper; savePage(last.page); this.redraw(last); } saveMeta(); savePage(this.page); this.renderTools(); return this.redraw(); }
     if (d.card) { if (confirm('Take this out of the quiz?')) { M.cards = M.cards.filter(c => c.id !== d.card); saveMeta(); this.renderTools(); this.renderAllOverlays(); toast('Taken out of the quiz'); } return; }
     if (d.revealCard) { this.revealed[d.revealCard] = true; this.asking = d.revealCard; return this.renderAllOverlays(); }
@@ -747,12 +850,13 @@ class Editor {
     if (a === 'undo') return this.doUndo(); if (a === 'redo') return this.doRedo();
     if (a === 'photo') return $('#ed-file').click();
     if (a === 'delimg') { const im = this.page.images.find(i => i.id === this.sel); this.page.images = this.page.images.filter(i => i.id !== this.sel); this.sel = null; const cards = this.pruneCards(); if (im) this.pushUndo({ type: 'imgdel', im, cards }); this.save(); this.renderTools(); return this.redraw(); }
-    if (a === 'test') { if (!this.testing && !M.profile.tmIntro) { ui.sheet = 'tmintro'; return renderSheet(); } this.testing = !this.testing; this.revealed = {}; this.asking = null; this.renderTools(); return this.renderAllOverlays(); }
+    if (a === 'test') { if (!this.testing && !M.profile.tmIntro) { ui.sheet = 'tmintro'; return renderSheet(); } this.testing = !this.testing; this.revealed = {}; this.asking = null; this.clearScratch(); this.renderTools(); if (this.testing) this.testTip(); return this.renderAllOverlays(); }
     if (a === 'quiz') { await savePageNow(this.page); ui.nbId = this.nbId; return startQuiz('page', { pageId: this.pageId }); }
     if (a === 'prev' && idx > 0) return this.scrollToSlot(idx - 1);
     if (a === 'next' && idx < this.slots.length - 1) return this.scrollToSlot(idx + 1);
   }
-  startTesting() { this.testing = true; this.revealed = {}; this.asking = null; this.renderTools(); this.renderAllOverlays(); if (!cardsOfPage(this.pageId).length) toast('Nothing to test on this page yet — mark something with the marker first'); }
+  testTip() { if (!M.profile.scratchTip) { M.profile.scratchTip = true; saveMeta(); toast('Write your answer right on the yellow card — it isn’t saved. Tap to check.'); } }
+  startTesting() { this.testing = true; this.revealed = {}; this.asking = null; this.clearScratch(); this.renderTools(); this.renderAllOverlays(); this.testTip(); if (!cardsOfPage(this.pageId).length) toast('Nothing to test on this page yet — mark something with the marker first'); }
 }
 
 /* ===== sheets ===== */
@@ -846,12 +950,16 @@ SHEETS.nbmenu = () => { const nb = nbById(ui.nbId); return `<div class="dim" dat
   <button class="option" style="background:var(--canvas)" data-menu="write"><span class="grow">Write</span></button>
   <button class="option" style="background:var(--canvas)" data-menu="pages"><span class="grow">All pages<span class="sub">${writtenPagesOf(nb.id).length} pages · ${M.cards.filter(c => c.notebookId === nb.id).length} questions</span></span></button>
   <button class="option" style="background:var(--canvas)" data-menu="edit"><span class="grow">Edit<span class="sub">Name, colour, paper</span></span></button>
+  <button class="option" style="background:var(--canvas)" data-menu="export"><span class="grow">Export as PDF<span class="sub">Print it, send it, open it in other apps</span></span></button>
   <button class="option" style="background:var(--canvas);color:#B42318" data-menu="delete"><span class="grow">Delete</span></button></div></div>`; };
 mountSheet.nbmenu = () => $('.sheet').addEventListener('click', async e => { const b = e.target.closest('[data-menu]'); if (!b) return; const nb = nbById(ui.nbId), m = b.dataset.menu;
   if (m === 'write') { ui.sheet = null; const ps = pagesOf(nb.id), tail = ps[ps.length - 1]; return go('editor', { pageId: tail && tail.n === 0 ? tail.id : newPage(nb.id), nbId: nb.id }); }
   if (m === 'pages') return go('notebook', { nbId: nb.id });
   if (m === 'edit') { ui.sheet = 'nbsettings'; return renderSheet(); }
+  if (m === 'export') { b.querySelector('.sub').textContent = 'Preparing…'; try { ui.pdf = await buildNotebookPDF(nb); } catch (err) { console.error(err); toast('Couldn’t make the PDF — try again'); } if (ui.pdf) { ui.sheet = 'pdfready'; renderSheet(); } else { ui.sheet = null; renderSheet(); } return; }
   if (m === 'delete' && await deleteNotebook(nb)) { ui.sheet = null; render(); } });
+SHEETS.pdfready = () => `<div class="dim" data-dim><div class="sheet col g14" style="width:min(420px,100%)"><div class="serif h2">PDF is ready</div><div class="s15 sec">${esc(ui.pdf?.name || '')} · ${Math.max(1, Math.round((ui.pdf?.size || 0) / 1024))} KB. Save it to Files, AirDrop it to your computer, print it, or open it in another app.</div><div class="row g12"><button class="btn muted grow" data-close>Close</button><button class="btn ink grow" data-pdf-share>Share / Save</button></div></div></div>`;
+mountSheet.pdfready = () => $('[data-pdf-share]').addEventListener('click', () => { if (ui.pdf) sharePDF(ui.pdf); });
 SHEETS.tmintro = () => `<div class="dim" data-dim><div class="sheet col g16" style="width:min(520px,100%)">
   <div class="row g12">${[['Your Q part', '<span style="font-family:var(--hand);font-size:22px;background:rgba(240,223,150,.75);border-radius:6px;padding:0 6px">(c)′ = 0</span>'], ['Hidden', '<span style="display:block;width:90px;height:30px;border-radius:8px;background:var(--yellow)"></span>'], ['Recalled?', '<span class="row g6"><span class="pill" style="background:var(--muted);font-size:11px;padding:4px 8px">Not yet</span><span class="pill" style="background:var(--ink);color:#fff;font-size:11px;padding:4px 8px">Knew it</span></span>']].map(([c, v]) => `<div class="grow col g8" style="background:var(--canvas);border-radius:18px;padding:12px;align-items:center"><div style="height:40px;display:flex;align-items:center">${v}</div><div class="s13 b6 sec">${c}</div></div>`).join('')}</div>
   <div class="serif h2">Test myself</div><div class="s16 sec" style="line-height:1.45">We hide everything with a Q on this page. Try to recall it, then tap to check. Whatever you don’t remember comes back in a few days.</div>
@@ -888,8 +996,9 @@ document.addEventListener('click', async e => {
   if (d.week !== undefined) { ui.weekOff = +d.week === 0 ? 0 : (ui.weekOff || 0) + +d.week; return render(); }
   if (d.fill) { const inp = $('#' + d.fill); if (inp) { inp.value = d.val; inp.dispatchEvent(new Event('input', { bubbles: true })); } return; }
   if (d.start) return startQuiz(d.start);
+  if (d.padClear !== undefined) { quiz.pad.length = 0; return render(); }
   if (d.reveal !== undefined) { quiz.revealed = true; return render(); }
-  if (d.grade !== undefined) { const c = M.cards.find(x => x.id === quiz.list[quiz.i]); schedule(c, +d.grade); quiz.results.push(+d.grade); if (quiz.i + 1 < quiz.list.length) { quiz.i++; quiz.revealed = false; return render(); } return go('results'); }
+  if (d.grade !== undefined) { quiz.pad = []; const c = M.cards.find(x => x.id === quiz.list[quiz.i]); schedule(c, +d.grade); quiz.results.push(+d.grade); if (quiz.i + 1 < quiz.list.length) { quiz.i++; quiz.revealed = false; return render(); } return go('results'); }
   if (d.quizEnd !== undefined) { return quiz.results.length ? go('results') : go(quiz.back); }
   if (d.hideInstall !== undefined) { M.profile.installHidden = true; saveMeta(); return render(); }
   if (d.toggle) { M.profile[d.toggle] = !M.profile[d.toggle]; saveMeta(); return render(); }
